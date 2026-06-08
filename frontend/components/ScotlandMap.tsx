@@ -18,6 +18,13 @@ type SquareResponse = {
     method: string;
     disclaimer: string;
     notes: string[];
+    council_name: string;
+    council_code: string;
+  };
+  postcode?: {
+    postcode: string;
+    admin_district: string | null;
+    country: string | null;
   };
 };
 
@@ -33,9 +40,32 @@ export default function ScotlandMap() {
   const mapRef = useRef<Map | null>(null);
   const [lat, setLat] = useState("55.9533");
   const [lng, setLng] = useState("-3.1883");
+  const [postcode, setPostcode] = useState("EH1 1YZ");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SquareResponse | null>(null);
+
+  const applyResult = (payload: SquareResponse) => {
+    setResult(payload);
+    setLat(payload.square.lat.toFixed(6));
+    setLng(payload.square.lng.toFixed(6));
+
+    const map = mapRef.current;
+    if (map?.getSource("selected-square")) {
+      const source = map.getSource("selected-square") as GeoJSONSource;
+      source.setData({
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            geometry: payload.square.polygon,
+            properties: {},
+          },
+        ],
+      });
+      map.flyTo({ center: [payload.square.lng, payload.square.lat], zoom: 16 });
+    }
+  };
 
   const fetchSquare = async (nextLat: number, nextLng: number) => {
     setLoading(true);
@@ -49,24 +79,26 @@ export default function ScotlandMap() {
         throw new Error(payload.detail ?? "Failed to fetch AGR estimate");
       }
       const payload = (await response.json()) as SquareResponse;
-      setResult(payload);
-      setLat(payload.square.lat.toFixed(6));
-      setLng(payload.square.lng.toFixed(6));
+      applyResult(payload);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      const map = mapRef.current;
-      if (map?.getSource("selected-square")) {
-        const source = map.getSource("selected-square") as GeoJSONSource;
-        source.setData({
-          type: "FeatureCollection",
-          features: [
-            {
-              type: "Feature",
-              geometry: payload.square.polygon,
-              properties: {},
-            },
-          ],
-        });
+  const fetchPostcode = async (rawPostcode: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const encoded = encodeURIComponent(rawPostcode.trim());
+      const response = await fetch(`${API_URL}/postcode/${encoded}`);
+      if (!response.ok) {
+        const payload = await response.json();
+        throw new Error(payload.detail ?? "Failed to fetch postcode");
       }
+      const payload = (await response.json()) as SquareResponse;
+      applyResult(payload);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -153,6 +185,28 @@ export default function ScotlandMap() {
         </div>
 
         <div className="panel">
+          <h2>Search postcode</h2>
+          <div className="field">
+            <label htmlFor="postcode">Postcode</label>
+            <input
+              id="postcode"
+              value={postcode}
+              onChange={(event) => setPostcode(event.target.value)}
+            />
+          </div>
+          <button
+            className="primary"
+            disabled={loading}
+            onClick={() => void fetchPostcode(postcode)}
+          >
+            {loading ? "Looking up…" : "Search postcode"}
+          </button>
+          <p className="meta" style={{ marginTop: "0.75rem" }}>
+            Uses free postcodes.io lookup — Scotland postcodes only for AGR.
+          </p>
+        </div>
+
+        <div className="panel">
           <h2>Search coordinates</h2>
           <div className="field">
             <label htmlFor="lat">Latitude</label>
@@ -201,8 +255,17 @@ export default function ScotlandMap() {
                 </span>
               </div>
               <p className="meta">
+                {result.postcode?.postcode && (
+                  <>
+                    Postcode: {result.postcode.postcode}
+                    <br />
+                  </>
+                )}
+                Council: {result.agr.council_name} ({result.agr.council_code})
+                <br />
                 Site rental: £{result.agr.site_rental_per_sqm_gbp.toFixed(2)}
-                /sqm · Confidence: {result.agr.confidence}
+                /sqm · Method: {result.agr.method} · Confidence:{" "}
+                {result.agr.confidence}
               </p>
               <p className="meta">{result.agr.disclaimer}</p>
             </>

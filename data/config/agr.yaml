@@ -13,6 +13,8 @@ valuation:
   rural_fallback: land_use_category
   yield_rate: 0.05
   habu_rule: authorised_consent_first
+  typical_dwelling_sqm: 85
+  hpi_base_year: 2009
 
 site_share:
   residential_wightman: 0.49

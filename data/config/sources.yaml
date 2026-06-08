@@ -1,0 +1,20 @@
+# Free public data sources — no paid API keys required
+
+hpi:
+  base_url: https://publicdata.landregistry.gov.uk/market-trend-data/house-price-index-data
+  average_prices_template: Average-prices-{period}.csv
+  indices_template: Indices-{period}.csv
+  period: "2026-03"
+  scotland_region_code: S92000003
+
+postcodes:
+  api_url: https://api.postcodes.io/postcodes
+
+councils:
+  rural_price_threshold_gbp: 145000
+  rural_codes:
+    - S12000013  # Na h-Eileanan Siar
+    - S12000017  # Highland
+    - S12000023  # Orkney Islands
+    - S12000027  # Shetland Islands
+    - S12000035  # Argyll and Bute

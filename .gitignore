@@ -15,8 +15,9 @@ build/
 .env.*.local
 
 # Data (generated)
-data/processed/
 data/cache/
+data/processed/*
+!data/processed/councils.json
 
 # IDE / OS
 .idea/

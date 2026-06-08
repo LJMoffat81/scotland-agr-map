@@ -1,0 +1,363 @@
+{
+  "generated_at": "2026-06-08T18:50:36.408036+00:00",
+  "hpi_period": "2026-03",
+  "scotland_hpi_index": 106.6,
+  "sources": {
+    "average_prices_url": "https://publicdata.landregistry.gov.uk/market-trend-data/house-price-index-data/Average-prices-2026-03.csv",
+    "indices_url": "https://publicdata.landregistry.gov.uk/market-trend-data/house-price-index-data/Indices-2026-03.csv"
+  },
+  "councils": [
+    {
+      "code": "S12000034",
+      "name": "Aberdeenshire",
+      "centroid": {
+        "lat": 57.2,
+        "lng": -2.5
+      },
+      "average_price_gbp": 196787,
+      "annual_change_pct": 1.0,
+      "rural": false
+    },
+    {
+      "code": "S12000041",
+      "name": "Angus",
+      "centroid": {
+        "lat": 56.7,
+        "lng": -2.9
+      },
+      "average_price_gbp": 160112,
+      "annual_change_pct": -1.8,
+      "rural": false
+    },
+    {
+      "code": "S12000035",
+      "name": "Argyll and Bute",
+      "centroid": {
+        "lat": 56.2,
+        "lng": -5.1
+      },
+      "average_price_gbp": 179601,
+      "annual_change_pct": 4.7,
+      "rural": true
+    },
+    {
+      "code": "S12000033",
+      "name": "City of Aberdeen",
+      "centroid": {
+        "lat": 57.1497,
+        "lng": -2.0943
+      },
+      "average_price_gbp": 133906,
+      "annual_change_pct": -1.6,
+      "rural": true
+    },
+    {
+      "code": "S12000042",
+      "name": "City of Dundee",
+      "centroid": {
+        "lat": 56.462,
+        "lng": -2.9707
+      },
+      "average_price_gbp": 134392,
+      "annual_change_pct": 0.6,
+      "rural": true
+    },
+    {
+      "code": "S12000036",
+      "name": "City of Edinburgh",
+      "centroid": {
+        "lat": 55.9533,
+        "lng": -3.1883
+      },
+      "average_price_gbp": 289857,
+      "annual_change_pct": -0.2,
+      "rural": false
+    },
+    {
+      "code": "S12000049",
+      "name": "City of Glasgow",
+      "centroid": {
+        "lat": 55.8642,
+        "lng": -4.2518
+      },
+      "average_price_gbp": 184281,
+      "annual_change_pct": 1.2,
+      "rural": false
+    },
+    {
+      "code": "S12000005",
+      "name": "Clackmannanshire",
+      "centroid": {
+        "lat": 56.12,
+        "lng": -3.75
+      },
+      "average_price_gbp": 161179,
+      "annual_change_pct": 0.5,
+      "rural": false
+    },
+    {
+      "code": "S12000006",
+      "name": "Dumfries and Galloway",
+      "centroid": {
+        "lat": 55.1,
+        "lng": -3.6
+      },
+      "average_price_gbp": 165597,
+      "annual_change_pct": 3.1,
+      "rural": false
+    },
+    {
+      "code": "S12000008",
+      "name": "East Ayrshire",
+      "centroid": {
+        "lat": 55.6,
+        "lng": -4.3
+      },
+      "average_price_gbp": 128845,
+      "annual_change_pct": 3.9,
+      "rural": true
+    },
+    {
+      "code": "S12000045",
+      "name": "East Dunbartonshire",
+      "centroid": {
+        "lat": 55.95,
+        "lng": -4.2
+      },
+      "average_price_gbp": 267207,
+      "annual_change_pct": 5.4,
+      "rural": false
+    },
+    {
+      "code": "S12000010",
+      "name": "East Lothian",
+      "centroid": {
+        "lat": 55.95,
+        "lng": -2.75
+      },
+      "average_price_gbp": 277238,
+      "annual_change_pct": -1.8,
+      "rural": false
+    },
+    {
+      "code": "S12000011",
+      "name": "East Renfrewshire",
+      "centroid": {
+        "lat": 55.78,
+        "lng": -4.35
+      },
+      "average_price_gbp": 288945,
+      "annual_change_pct": 1.9,
+      "rural": false
+    },
+    {
+      "code": "S12000014",
+      "name": "Falkirk",
+      "centroid": {
+        "lat": 56.0,
+        "lng": -3.75
+      },
+      "average_price_gbp": 165754,
+      "annual_change_pct": 1.3,
+      "rural": false
+    },
+    {
+      "code": "S12000047",
+      "name": "Fife",
+      "centroid": {
+        "lat": 56.2,
+        "lng": -3.15
+      },
+      "average_price_gbp": 170395,
+      "annual_change_pct": 1.1,
+      "rural": false
+    },
+    {
+      "code": "S12000017",
+      "name": "Highland",
+      "centroid": {
+        "lat": 57.5,
+        "lng": -4.2
+      },
+      "average_price_gbp": 211875,
+      "annual_change_pct": 1.1,
+      "rural": true
+    },
+    {
+      "code": "S12000018",
+      "name": "Inverclyde",
+      "centroid": {
+        "lat": 55.9,
+        "lng": -4.75
+      },
+      "average_price_gbp": 112529,
+      "annual_change_pct": 11.0,
+      "rural": true
+    },
+    {
+      "code": "S12000019",
+      "name": "Midlothian",
+      "centroid": {
+        "lat": 55.85,
+        "lng": -3.1
+      },
+      "average_price_gbp": 272754,
+      "annual_change_pct": 0.5,
+      "rural": false
+    },
+    {
+      "code": "S12000020",
+      "name": "Moray",
+      "centroid": {
+        "lat": 57.6,
+        "lng": -3.3
+      },
+      "average_price_gbp": 200609,
+      "annual_change_pct": 4.8,
+      "rural": false
+    },
+    {
+      "code": "S12000013",
+      "name": "Na h-Eileanan Siar",
+      "centroid": {
+        "lat": 58.2,
+        "lng": -6.4
+      },
+      "average_price_gbp": 135340,
+      "annual_change_pct": -5.5,
+      "rural": true
+    },
+    {
+      "code": "S12000021",
+      "name": "North Ayrshire",
+      "centroid": {
+        "lat": 55.65,
+        "lng": -4.75
+      },
+      "average_price_gbp": 130233,
+      "annual_change_pct": 5.4,
+      "rural": true
+    },
+    {
+      "code": "S12000050",
+      "name": "North Lanarkshire",
+      "centroid": {
+        "lat": 55.85,
+        "lng": -3.95
+      },
+      "average_price_gbp": 151455,
+      "annual_change_pct": 3.5,
+      "rural": false
+    },
+    {
+      "code": "S12000023",
+      "name": "Orkney Islands",
+      "centroid": {
+        "lat": 59.0,
+        "lng": -3.0
+      },
+      "average_price_gbp": 209843,
+      "annual_change_pct": 1.5,
+      "rural": true
+    },
+    {
+      "code": "S12000048",
+      "name": "Perth and Kinross",
+      "centroid": {
+        "lat": 56.4,
+        "lng": -3.4
+      },
+      "average_price_gbp": 213647,
+      "annual_change_pct": -0.8,
+      "rural": false
+    },
+    {
+      "code": "S12000038",
+      "name": "Renfrewshire",
+      "centroid": {
+        "lat": 55.85,
+        "lng": -4.5
+      },
+      "average_price_gbp": 158755,
+      "annual_change_pct": 5.9,
+      "rural": false
+    },
+    {
+      "code": "S12000026",
+      "name": "Scottish Borders",
+      "centroid": {
+        "lat": 55.55,
+        "lng": -2.8
+      },
+      "average_price_gbp": 180843,
+      "annual_change_pct": 1.4,
+      "rural": false
+    },
+    {
+      "code": "S12000027",
+      "name": "Shetland Islands",
+      "centroid": {
+        "lat": 60.2,
+        "lng": -1.2
+      },
+      "average_price_gbp": 156982,
+      "annual_change_pct": -27.5,
+      "rural": true
+    },
+    {
+      "code": "S12000028",
+      "name": "South Ayrshire",
+      "centroid": {
+        "lat": 55.45,
+        "lng": -4.6
+      },
+      "average_price_gbp": 164331,
+      "annual_change_pct": 6.2,
+      "rural": false
+    },
+    {
+      "code": "S12000029",
+      "name": "South Lanarkshire",
+      "centroid": {
+        "lat": 55.55,
+        "lng": -3.85
+      },
+      "average_price_gbp": 175529,
+      "annual_change_pct": 3.3,
+      "rural": false
+    },
+    {
+      "code": "S12000030",
+      "name": "Stirling",
+      "centroid": {
+        "lat": 56.12,
+        "lng": -4.0
+      },
+      "average_price_gbp": 225892,
+      "annual_change_pct": 1.8,
+      "rural": false
+    },
+    {
+      "code": "S12000039",
+      "name": "West Dunbartonshire",
+      "centroid": {
+        "lat": 55.95,
+        "lng": -4.55
+      },
+      "average_price_gbp": 127161,
+      "annual_change_pct": 7.9,
+      "rural": true
+    },
+    {
+      "code": "S12000040",
+      "name": "West Lothian",
+      "centroid": {
+        "lat": 55.9,
+        "lng": -3.55
+      },
+      "average_price_gbp": 221136,
+      "annual_change_pct": 2.7,
+      "rural": false
+    }
+  ]
+}

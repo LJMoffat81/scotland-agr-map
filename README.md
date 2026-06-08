@@ -20,13 +20,23 @@ Built for [SLRG](https://www.slrg.scot) as a standalone public education and adv
 
 ## Quick start
 
-### Backend
+### Build valuation data (first run / monthly refresh)
 
 ```powershell
 cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+python -m etl.build_processed
+```
+
+Downloads UK HPI from HM Land Registry (free) and writes `data/processed/councils.json`.
+
+### Backend
+
+```powershell
+cd backend
+.\.venv\Scripts\Activate.ps1
 uvicorn api.main:app --reload --app-dir .
 ```
 
@@ -61,6 +71,8 @@ The original Streamlit prototype is preserved at git tag `legacy/streamlit-proto
 
 ## Status
 
-**Phase 0 complete:** monorepo scaffold, 3m grid snap, placeholder AGR engine, Scotland map UI.
+**Phase 0 complete:** monorepo scaffold, 3m grid snap, Scotland map UI.
 
-**Phase 1 next:** ROS/HPI ETL, Wightman residual valuation, W3W nonprofit API.
+**Phase 1 complete:** UK HPI ETL, council-area lookup, Wightman residual valuation, postcode search (postcodes.io).
+
+**Phase 2 next:** Full AGR breakdown UI, scenario toggles, W3W nonprofit API.
