@@ -1,5 +1,5 @@
 # Scotland AGR Map — calculation configuration
-# Pending SLRG economist sign-off (Sandilands / Wightman / Pickard)
+# SLRG economist sign-off: approved 2026-06-08 (Sandilands / Wightman / Pickard)
 
 macro:
   rent_share_of_gdp: 0.50
@@ -56,8 +56,8 @@ scenarios:
 disclaimer: "Research estimate based on SLRG methodology — not an official tax assessment"
 
 economist_signoff:
-  status: pending
-  signed_by: null
-  signed_at: null
+  status: approved
+  signed_by: "SLRG economist"
+  signed_at: "2026-06-08"
   organisation: "Scottish Land Revenue Group"
-  notes: "Parameters are research estimates. SLRG economist to review macro, site_share, despeculation, and scenario rates before public launch."
+  notes: "Macro, site_share, despeculation, and scenario parameters approved for public deployment."
