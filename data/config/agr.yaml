@@ -1,0 +1,53 @@
+# Scotland AGR Map — calculation configuration
+# Pending SLRG economist sign-off (Sandilands / Wightman / Pickard)
+
+macro:
+  rent_share_of_gdp: 0.50
+  scotland_income_tax_replacement_gbp: 11500000000
+  deadweight_loss_conventional: 0.10
+  growth_boost_percentage_points: 2.0
+
+valuation:
+  primary_method: residual
+  fallback_method: cama
+  rural_fallback: land_use_category
+  yield_rate: 0.05
+  habu_rule: authorised_consent_first
+
+site_share:
+  residential_wightman: 0.49
+  residential_slrg: 0.60
+  use_slrg_for_display: true
+
+despeculation:
+  farmland_market_to_productive: 0.20
+  urban_speculation_discount: 0.70
+  marginal_land_rent: 0
+
+per_square:
+  area_sqm: 9
+  agr_capture_rate: 1.0
+
+land_use_values_gbp_per_ha_2009:
+  residential: 1500000
+  business_retail: 1000000
+  urban_vacant: 625000
+  industrial: 250000
+  forestry: 1000
+  agriculture: 4094
+  sporting_estates: 100
+  infrastructure: 0
+  open_space: 0
+
+scenarios:
+  full_agr:
+    capture_rate: 1.0
+    label: "Full AGR (George / Sandilands)"
+  replace_income_tax:
+    target_gbp: 11500000000
+    label: "Replace Scotland Income Tax (Sandilands)"
+  revenue_neutral:
+    rate_per_pound: 0.0316
+    label: "Replace Council Tax + NDR (Wightman)"
+
+disclaimer: "Research estimate based on SLRG methodology — not an official tax assessment"
