@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import httpx
 import yaml
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pathlib import Path
+from fastapi.responses import JSONResponse
 
 from agr.engine import breakdown_to_dict, calculate_square_agr
 from agr.config import load_config
 from spatial.grid import snap_to_w3w_grid
+from spatial.w3w import W3WNotConfiguredError, words_to_coordinates
+from validation.glasgow_ward_18 import run_validation
 
 app = FastAPI(
     title="Scotland AGR Map API",
@@ -24,7 +29,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-SOURCES_PATH = Path(__file__).resolve().parents[2] / "data" / "config" / "sources.yaml"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SOURCES_PATH = REPO_ROOT / "data" / "config" / "sources.yaml"
+COUNCILS_GEOJSON = REPO_ROOT / "data" / "processed" / "scotland_councils.geojson"
+WARD_18_GEOJSON = REPO_ROOT / "data" / "processed" / "glasgow_ward_18.geojson"
 
 
 def _load_postcode_api_url() -> str:
@@ -59,14 +67,47 @@ def _square_response(lat: float, lng: float, scenario: str | None = None) -> dic
     }
 
 
+def _load_geojson(path: Path) -> JSONResponse:
+    if not path.exists():
+        raise HTTPException(
+            status_code=503,
+            detail=f"Missing {path.name}. Run the Phase 3 ETL scripts in backend/etl/.",
+        )
+    return JSONResponse(json.loads(path.read_text(encoding="utf-8")))
+
+
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "service": "scotland-agr-map-api", "version": "0.3.0"}
+    return {
+        "status": "ok",
+        "service": "scotland-agr-map-api",
+        "version": "0.3.0",
+        "w3w_configured": bool(__import__("os").getenv("W3W_API_KEY")),
+    }
 
 
 @app.get("/config")
 def get_config() -> dict:
     return load_config()
+
+
+@app.get("/boundaries/councils")
+def get_council_boundaries() -> JSONResponse:
+    return _load_geojson(COUNCILS_GEOJSON)
+
+
+@app.get("/boundaries/glasgow-ward-18")
+def get_glasgow_ward_18_boundary() -> JSONResponse:
+    return _load_geojson(WARD_18_GEOJSON)
+
+
+@app.get("/validation/glasgow-ward-18")
+def validate_glasgow_ward_18(
+    samples: int = Query(default=12, ge=3, le=30),
+) -> dict:
+    if not WARD_18_GEOJSON.exists():
+        raise HTTPException(status_code=503, detail="Glasgow Ward 18 boundary not built yet.")
+    return run_validation(sample_count=samples)
 
 
 @app.get("/square")
@@ -80,18 +121,29 @@ def get_square(
     ),
 ) -> dict:
     if words:
-        raise HTTPException(
-            status_code=501,
-            detail="W3W API not configured yet. Apply for nonprofit access and set W3W_API_KEY.",
-        )
+        try:
+            coords = words_to_coordinates(words)
+        except W3WNotConfiguredError as exc:
+            raise HTTPException(status_code=501, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        lat = coords.lat
+        lng = coords.lng
 
     if lat is None or lng is None:
-        raise HTTPException(status_code=400, detail="Provide lat and lng, or words once W3W is configured.")
+        raise HTTPException(
+            status_code=400,
+            detail="Provide lat and lng, or words (requires W3W_API_KEY).",
+        )
 
     try:
-        return _square_response(lat, lng, scenario=scenario)
+        payload = _square_response(lat, lng, scenario=scenario)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if words:
+        payload["what3words"] = words
+    return payload
 
 
 @app.get("/postcode/{postcode}")
@@ -102,7 +154,6 @@ def get_postcode_square(
         description="Policy scenario: full_agr, replace_income_tax, revenue_neutral",
     ),
 ) -> dict:
-    """Resolve a UK postcode via postcodes.io (free) and return AGR for that location."""
     normalised = postcode.replace(" ", "").upper()
     if len(normalised) < 5 or len(normalised) > 7:
         raise HTTPException(status_code=400, detail="Invalid postcode format.")
@@ -124,9 +175,6 @@ def get_postcode_square(
     if not result:
         raise HTTPException(status_code=404, detail="Postcode not found.")
 
-    country = (result.get("country") or "").lower()
-    if country not in {"scotland", "england", "wales", "northern ireland"}:
-        pass
     lat = result["latitude"]
     lng = result["longitude"]
 

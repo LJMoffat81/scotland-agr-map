@@ -32,6 +32,13 @@ python -m etl.build_processed
 
 Downloads UK HPI from HM Land Registry (free) and writes `data/processed/councils.json`.
 
+```powershell
+python -m etl.build_boundaries   # council polygons
+python -m etl.build_wards        # Glasgow Ward 18 validation area
+```
+
+Optional: set `W3W_API_KEY` in `backend/.env` after SLRG nonprofit approval.
+
 ### Backend
 
 ```powershell
@@ -77,4 +84,6 @@ The original Streamlit prototype is preserved at git tag `legacy/streamlit-proto
 
 **Phase 2 complete:** Full AGR breakdown panel, three policy scenarios, live methodology page.
 
-**Phase 3 next:** Council boundary polygons, ROS parcel data, W3W nonprofit API.
+**Phase 3 complete:** Council boundary polygons, ROS INSPIRE parcel lookup, Glasgow Ward 18 validation, W3W API support.
+
+**Phase 4 next:** Deploy standalone site, SLRG economist sign-off of `agr.yaml`.

@@ -176,6 +176,21 @@ export default function MethodologyContent() {
         )}
       </section>
 
+      <section>
+        <h2>Phase 3 spatial accuracy</h2>
+        <ul>
+          <li>Council areas resolved by boundary polygon (not nearest centroid).</li>
+          <li>
+            ROS INSPIRE cadastral parcels queried live via free WMS when available.
+          </li>
+          <li>
+            Glasgow Ward 18 (East Centre) validation case study — toggle on the map
+            or call <code>/validation/glasgow-ward-18</code>.
+          </li>
+          <li>What3Words search activates once SLRG nonprofit API key is set.</li>
+        </ul>
+      </section>
+
       <p className="meta">
         Research estimate pending SLRG economist sign-off. Not an official tax
         assessment.

@@ -28,6 +28,10 @@ export type AgrResult = {
   council_name: string;
   council_code: string;
   average_price_gbp: number | null;
+  lookup_method: string;
+  parcel_id: string | null;
+  parcel_area_sqm: number | null;
+  ward_name: string | null;
   scenarios: Record<ScenarioId, ScenarioCharge>;
 };
 
@@ -103,9 +107,26 @@ export default function AgrBreakdown({
           <tr>
             <th>Council</th>
             <td>
-              {agr.council_name} ({agr.council_code})
+              {agr.council_name} ({agr.council_code}) · {agr.lookup_method}
             </td>
           </tr>
+          {agr.ward_name && (
+            <tr>
+              <th>Ward</th>
+              <td>{agr.ward_name}</td>
+            </tr>
+          )}
+          {agr.parcel_id && (
+            <tr>
+              <th>Cadastral parcel</th>
+              <td>
+                {agr.parcel_id}
+                {agr.parcel_area_sqm
+                  ? ` (${agr.parcel_area_sqm.toLocaleString("en-GB")} sqm)`
+                  : ""}
+              </td>
+            </tr>
+          )}
           {agr.average_price_gbp && (
             <tr>
               <th>HPI avg price</th>

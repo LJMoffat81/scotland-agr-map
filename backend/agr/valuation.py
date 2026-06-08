@@ -63,9 +63,9 @@ def residual_site_capital_per_sqm(
         f"÷ {dwelling_sqm:.0f} sqm dwelling."
     )
     notes.append(f"Council: {council.name} ({council.code}), HPI period latest ETL.")
-    if council.distance_km > 8:
+    if council.lookup_method == "centroid_fallback" and council.distance_km > 0:
         notes.append(
-            f"Nearest council centroid {council.distance_km} km away — border accuracy improves in Phase 3."
+            f"Boundary miss — fell back to nearest centroid ({council.distance_km} km away)."
         )
 
     return site_capital, method, confidence, notes

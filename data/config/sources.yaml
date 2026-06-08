@@ -18,3 +18,20 @@ councils:
     - S12000023  # Orkney Islands
     - S12000027  # Shetland Islands
     - S12000035  # Argyll and Bute
+
+boundaries:
+  councils:
+    source_url: https://raw.githubusercontent.com/martinjc/UK-GeoJSON/master/json/administrative/gb/lad.json
+    simplify_tolerance_degrees: 0.0008
+  glasgow_ward_18:
+    source_url: https://www.boundaries.scot/wp-content/uploads/2025/09/4th_Review_2007_2017_All_Scotland_wards_1758892796.zip
+    council_name: Glasgow City
+    ward_number: 18
+    ward_name: East Centre
+    validation_label: "Glasgow Ward 18 — East Centre (Wightman validation case study)"
+
+parcels:
+  wms_url: https://ros-inspire.themapcloud.com/maps/wms
+  wms_layer: CP.CadastralParcel
+  query_delta_degrees: 0.001
+  timeout_seconds: 10

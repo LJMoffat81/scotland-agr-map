@@ -18,6 +18,8 @@ build/
 data/cache/
 data/processed/*
 !data/processed/councils.json
+!data/processed/scotland_councils.geojson
+!data/processed/glasgow_ward_18.geojson
 
 # IDE / OS
 .idea/

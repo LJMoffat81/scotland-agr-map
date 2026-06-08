@@ -7,6 +7,8 @@ from agr.config import load_config
 from agr.scenarios import compute_scenarios, resolve_active_scenario, scenario_to_dict
 from agr.valuation import residual_site_capital_per_sqm
 from spatial.grid import GridSquare
+from spatial.parcels import lookup_parcel
+from spatial.polygons import lookup_glasgow_ward_18
 
 
 @dataclass
@@ -28,6 +30,10 @@ class AgrBreakdown:
     council_code: str
     council_name: str
     average_price_gbp: int | None
+    lookup_method: str
+    parcel_id: str | None
+    parcel_area_sqm: float | None
+    ward_name: str | None
     scenarios: dict[str, dict]
 
 
@@ -40,9 +46,18 @@ def calculate_square_agr(square: GridSquare, scenario: str | None = None) -> Agr
     active_scenario = resolve_active_scenario(scenario)
 
     council = lookup_council(square.lat, square.lng)
+    parcel = lookup_parcel(square.lat, square.lng)
+    ward = lookup_glasgow_ward_18(square.lat, square.lng)
+
     site_capital_per_sqm, method, confidence, val_notes = residual_site_capital_per_sqm(
         council, config
     )
+
+    if parcel is not None and confidence == "medium":
+        confidence = "high"
+        val_notes.append(
+            f"ROS INSPIRE cadastral parcel {parcel.label} ({parcel.area_sqm:,.0f} sqm) confirms land register coverage."
+        )
 
     if council.rural:
         discount = despec["farmland_market_to_productive"]
@@ -73,9 +88,12 @@ def calculate_square_agr(square: GridSquare, scenario: str | None = None) -> Agr
 
     notes = [
         *val_notes,
+        f"Council resolved via {council.lookup_method} polygon lookup.",
         "Pickard de-speculation discount applied to remove speculative land price inflation.",
         "Sandilands: charges are on economic rental value, not market speculation.",
     ]
+    if ward is not None:
+        notes.append(f"Location within Glasgow Ward {ward.ward_number} ({ward.ward_name}) validation area.")
 
     return AgrBreakdown(
         annual_ground_rent_gbp=active_charge,
@@ -95,6 +113,10 @@ def calculate_square_agr(square: GridSquare, scenario: str | None = None) -> Agr
         council_code=council.code,
         council_name=council.name,
         average_price_gbp=council.average_price_gbp if not council.rural else None,
+        lookup_method=council.lookup_method,
+        parcel_id=parcel.label if parcel else None,
+        parcel_area_sqm=parcel.area_sqm if parcel else None,
+        ward_name=ward.ward_name if ward else None,
         scenarios={key: scenario_to_dict(value) for key, value in scenario_charges.items()},
     )
 

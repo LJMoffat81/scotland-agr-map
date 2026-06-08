@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+from spatial.polygons import lookup_council_boundary
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COUNCILS_PATH = REPO_ROOT / "data" / "processed" / "councils.json"
 
@@ -18,6 +20,7 @@ class CouncilArea:
     annual_change_pct: float | None
     rural: bool
     distance_km: float
+    lookup_method: str
 
 
 def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
@@ -44,7 +47,27 @@ def _load_councils() -> list[dict]:
     return payload["councils"]
 
 
-def lookup_council(lat: float, lng: float) -> CouncilArea:
+@lru_cache(maxsize=1)
+def _councils_by_code() -> dict[str, dict]:
+    return {council["code"]: council for council in _load_councils()}
+
+
+def _from_boundary(lat: float, lng: float, boundary_match) -> CouncilArea | None:
+    council = _councils_by_code().get(boundary_match.hpi_code)
+    if council is None:
+        return None
+    return CouncilArea(
+        code=council["code"],
+        name=council["name"],
+        average_price_gbp=council["average_price_gbp"],
+        annual_change_pct=council.get("annual_change_pct"),
+        rural=council["rural"],
+        distance_km=0.0,
+        lookup_method="boundary",
+    )
+
+
+def _from_centroid(lat: float, lng: float) -> CouncilArea:
     councils = _load_councils()
     best: dict | None = None
     best_distance = float("inf")
@@ -66,4 +89,14 @@ def lookup_council(lat: float, lng: float) -> CouncilArea:
         annual_change_pct=best.get("annual_change_pct"),
         rural=best["rural"],
         distance_km=round(best_distance, 2),
+        lookup_method="centroid_fallback",
     )
+
+
+def lookup_council(lat: float, lng: float) -> CouncilArea:
+    boundary_match = lookup_council_boundary(lat, lng)
+    if boundary_match is not None:
+        council = _from_boundary(lat, lng, boundary_match)
+        if council is not None:
+            return council
+    return _from_centroid(lat, lng)

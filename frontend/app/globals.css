@@ -88,6 +88,15 @@ input {
   color: var(--slrg-muted);
 }
 
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  margin-bottom: 0.45rem;
+  cursor: pointer;
+}
+
 .field input {
   border: 1px solid #bcccdc;
   border-radius: 8px;

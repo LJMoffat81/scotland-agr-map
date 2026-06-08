@@ -6,6 +6,7 @@ def test_edinburgh_coords_map_to_edinburgh():
     assert council.code == "S12000036"
     assert council.name == "City of Edinburgh"
     assert council.average_price_gbp > 200_000
+    assert council.lookup_method == "boundary"
 
 
 def test_highland_coords_map_to_highland():
