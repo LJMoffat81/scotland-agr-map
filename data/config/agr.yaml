@@ -54,3 +54,10 @@ scenarios:
     label: "Replace Council Tax + NDR (Wightman)"
 
 disclaimer: "Research estimate based on SLRG methodology — not an official tax assessment"
+
+economist_signoff:
+  status: pending
+  signed_by: null
+  signed_at: null
+  organisation: "Scottish Land Revenue Group"
+  notes: "Parameters are research estimates. SLRG economist to review macro, site_share, despeculation, and scenario rates before public launch."

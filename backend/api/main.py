@@ -9,6 +9,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from api.cors import cors_settings
 from agr.engine import breakdown_to_dict, calculate_square_agr
 from agr.config import load_config
 from spatial.grid import snap_to_w3w_grid
@@ -18,12 +19,14 @@ from validation.glasgow_ward_18 import run_validation
 app = FastAPI(
     title="Scotland AGR Map API",
     description="Annual Ground Rent estimates for What3Words 3x3m squares in Scotland",
-    version="0.3.0",
+    version="0.4.0",
 )
 
+_allowed_origins, _allowed_origin_regex = cors_settings()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=_allowed_origins,
+    allow_origin_regex=_allowed_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -78,12 +81,21 @@ def _load_geojson(path: Path) -> JSONResponse:
 
 @app.get("/health")
 def health() -> dict:
+    config = load_config()
+    signoff = config.get("economist_signoff", {})
     return {
         "status": "ok",
         "service": "scotland-agr-map-api",
-        "version": "0.3.0",
+        "version": "0.4.0",
         "w3w_configured": bool(__import__("os").getenv("W3W_API_KEY")),
+        "economist_signoff_status": signoff.get("status", "unknown"),
     }
+
+
+@app.get("/signoff")
+def get_signoff() -> dict:
+    config = load_config()
+    return config.get("economist_signoff", {"status": "unknown"})
 
 
 @app.get("/config")

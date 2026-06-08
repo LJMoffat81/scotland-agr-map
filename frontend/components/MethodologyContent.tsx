@@ -4,7 +4,16 @@ import { useEffect, useState } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
+type Signoff = {
+  status: string;
+  signed_by: string | null;
+  signed_at: string | null;
+  organisation: string;
+  notes: string;
+};
+
 type AgrConfig = {
+  economist_signoff?: Signoff;
   macro: {
     rent_share_of_gdp: number;
     scotland_income_tax_replacement_gbp: number;
@@ -40,9 +49,15 @@ function formatGbp(value: number) {
 
 export default function MethodologyContent() {
   const [config, setConfig] = useState<AgrConfig | null>(null);
+  const [signoff, setSignoff] = useState<Signoff | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    void fetch(`${API_URL}/signoff`)
+      .then((response) => response.json() as Promise<Signoff>)
+      .then(setSignoff)
+      .catch(() => undefined);
+
     void fetch(`${API_URL}/config`)
       .then((response) => {
         if (!response.ok) {
@@ -191,9 +206,29 @@ export default function MethodologyContent() {
         </ul>
       </section>
 
+      <section>
+        <h2>Economist sign-off</h2>
+        {signoff ? (
+          <ul>
+            <li>
+              Status: <strong>{signoff.status}</strong>
+              {signoff.signed_by ? ` — ${signoff.signed_by}` : ""}
+              {signoff.signed_at ? ` (${signoff.signed_at})` : ""}
+            </li>
+            <li>{signoff.organisation}</li>
+            <li>{signoff.notes}</li>
+          </ul>
+        ) : (
+          <p className="meta">Sign-off status unavailable (API offline).</p>
+        )}
+        <p className="meta">
+          To approve parameters, update <code>economist_signoff</code> in{" "}
+          <code>data/config/agr.yaml</code> and redeploy the API.
+        </p>
+      </section>
+
       <p className="meta">
-        Research estimate pending SLRG economist sign-off. Not an official tax
-        assessment.
+        Research estimate — not an official tax assessment.
       </p>
       <p>
         <a href="/">Back to map</a>

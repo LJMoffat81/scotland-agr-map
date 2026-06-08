@@ -86,4 +86,62 @@ The original Streamlit prototype is preserved at git tag `legacy/streamlit-proto
 
 **Phase 3 complete:** Council boundary polygons, ROS INSPIRE parcel lookup, Glasgow Ward 18 validation, W3W API support.
 
-**Phase 4 next:** Deploy standalone site, SLRG economist sign-off of `agr.yaml`.
+**Phase 4 complete:** Vercel + Railway deployment config, CI, economist sign-off workflow.
+
+## Deploy (standalone site)
+
+Free-tier friendly: **Vercel** (frontend) + **Railway** (API). No paid map or data APIs required.
+
+### 1. Railway — API
+
+1. Create a project at [railway.app](https://railway.app) and connect this GitHub repo.
+2. Railway reads `railway.toml` and builds `backend/Dockerfile` (includes `data/`).
+3. Set environment variables:
+
+| Variable | Value |
+|----------|-------|
+| `ALLOWED_ORIGINS` | Your Vercel URL, e.g. `https://scotland-agr-map.vercel.app` |
+| `ALLOW_VERCEL_PREVIEWS` | `true` (allows `*.vercel.app` preview deploys) |
+| `W3W_API_KEY` | Optional — after SLRG nonprofit approval |
+
+4. Copy the public Railway URL (e.g. `https://scotland-agr-map-api.up.railway.app`).
+
+Health check: `GET /health`
+
+### 2. Vercel — frontend
+
+1. Import the repo at [vercel.com](https://vercel.com).
+2. Set **Root Directory** to `frontend`.
+3. Set environment variable **before first deploy**:
+
+| Variable | Value |
+|----------|-------|
+| `NEXT_PUBLIC_API_URL` | Your Railway API URL |
+
+4. Deploy. `frontend/vercel.json` is included.
+
+### 3. Custom domain (optional)
+
+- Point `agr.slrg.scot` (or similar) to Vercel.
+- Add that URL to Railway `ALLOWED_ORIGINS`.
+
+### Economist sign-off
+
+Parameters live in `data/config/agr.yaml`. When the SLRG economist approves, update:
+
+```yaml
+economist_signoff:
+  status: approved
+  signed_by: "Name, credentials"
+  signed_at: "2026-06-08"
+```
+
+Redeploy Railway. Status appears on `/signoff` and the methodology page.
+
+### Docker (self-hosted alternative)
+
+```powershell
+docker compose up --build
+```
+
+App: http://localhost:3000 · API: http://localhost:8000

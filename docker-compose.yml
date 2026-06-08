@@ -9,10 +9,15 @@ services:
       - ./data:/app/data:ro
     environment:
       - W3W_API_KEY=${W3W_API_KEY:-}
+      - ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+      - ALLOW_VERCEL_PREVIEWS=false
+      - PORT=8000
 
   frontend:
     build:
       context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
     ports:
       - "3000:3000"
     environment:
