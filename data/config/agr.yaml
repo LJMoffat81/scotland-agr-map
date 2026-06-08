@@ -53,7 +53,7 @@ scenarios:
     rate_per_pound: 0.0316
     label: "Replace Council Tax + NDR (Wightman)"
 
-disclaimer: "Research estimate based on SLRG methodology — not an official tax assessment"
+disclaimer: "SLRG research estimate (economist approved 2026-06-08) — not an official tax assessment"
 
 economist_signoff:
   status: approved

@@ -86,6 +86,7 @@ export default function ScotlandMap() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SquareResponse | null>(null);
+  const [signoffStatus, setSignoffStatus] = useState<string | null>(null);
 
   const applyResult = useCallback((payload: SquareResponse) => {
     setResult(payload);
@@ -168,6 +169,17 @@ export default function ScotlandMap() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    void fetch(`${API_URL}/signoff`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { status?: string } | null) => {
+        if (payload?.status) {
+          setSignoffStatus(payload.status);
+        }
+      })
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     if (!mapContainer.current || mapRef.current) {
@@ -375,6 +387,14 @@ export default function ScotlandMap() {
           </a>
           {" · "}
           <a href="/methodology">Methodology</a>
+          {signoffStatus && (
+            <>
+              {" · "}
+              <span className={`signoff-badge signoff-${signoffStatus}`}>
+                Economist: {signoffStatus}
+              </span>
+            </>
+          )}
         </div>
       </aside>
 
