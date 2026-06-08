@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl, { Map, GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import AgrBreakdown, { AgrResult, ScenarioId } from "./AgrBreakdown";
 
 type SquareResponse = {
   square: {
@@ -11,16 +12,7 @@ type SquareResponse = {
     area_sqm: number;
     polygon: GeoJSON.Polygon;
   };
-  agr: {
-    annual_ground_rent_gbp: number;
-    site_rental_per_sqm_gbp: number;
-    confidence: string;
-    method: string;
-    disclaimer: string;
-    notes: string[];
-    council_name: string;
-    council_code: string;
-  };
+  agr: AgrResult;
   postcode?: {
     postcode: string;
     admin_district: string | null;
@@ -41,6 +33,7 @@ export default function ScotlandMap() {
   const [lat, setLat] = useState("55.9533");
   const [lng, setLng] = useState("-3.1883");
   const [postcode, setPostcode] = useState("EH1 1YZ");
+  const [scenario, setScenario] = useState<ScenarioId>("full_agr");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SquareResponse | null>(null);
@@ -49,6 +42,7 @@ export default function ScotlandMap() {
     setResult(payload);
     setLat(payload.square.lat.toFixed(6));
     setLng(payload.square.lng.toFixed(6));
+    setScenario(payload.agr.active_scenario);
 
     const map = mapRef.current;
     if (map?.getSource("selected-square")) {
@@ -72,7 +66,7 @@ export default function ScotlandMap() {
     setError(null);
     try {
       const response = await fetch(
-        `${API_URL}/square?lat=${nextLat}&lng=${nextLng}`,
+        `${API_URL}/square?lat=${nextLat}&lng=${nextLng}&scenario=${scenario}`,
       );
       if (!response.ok) {
         const payload = await response.json();
@@ -92,7 +86,9 @@ export default function ScotlandMap() {
     setError(null);
     try {
       const encoded = encodeURIComponent(rawPostcode.trim());
-      const response = await fetch(`${API_URL}/postcode/${encoded}`);
+      const response = await fetch(
+        `${API_URL}/postcode/${encoded}?scenario=${scenario}`,
+      );
       if (!response.ok) {
         const payload = await response.json();
         throw new Error(payload.detail ?? "Failed to fetch postcode");
@@ -201,9 +197,6 @@ export default function ScotlandMap() {
           >
             {loading ? "Looking up…" : "Search postcode"}
           </button>
-          <p className="meta" style={{ marginTop: "0.75rem" }}>
-            Uses free postcodes.io lookup — Scotland postcodes only for AGR.
-          </p>
         </div>
 
         <div className="panel">
@@ -240,35 +233,18 @@ export default function ScotlandMap() {
           <h2>AGR result</h2>
           {error && <p className="meta">{error}</p>}
           {!error && !result && (
-            <p className="meta">Click the map or search coordinates to begin.</p>
+            <p className="meta">Click the map or search to begin.</p>
           )}
           {result && (
-            <>
-              <p className="meta">
-                Square centroid: {result.square.lat.toFixed(6)},{" "}
-                {result.square.lng.toFixed(6)} ({result.square.area_sqm} sqm)
-              </p>
-              <div className="agr-value">
-                £{result.agr.annual_ground_rent_gbp.toFixed(2)}
-                <span style={{ fontSize: "1rem", color: "var(--slrg-text)" }}>
-                  /year
-                </span>
-              </div>
-              <p className="meta">
-                {result.postcode?.postcode && (
-                  <>
-                    Postcode: {result.postcode.postcode}
-                    <br />
-                  </>
-                )}
-                Council: {result.agr.council_name} ({result.agr.council_code})
-                <br />
-                Site rental: £{result.agr.site_rental_per_sqm_gbp.toFixed(2)}
-                /sqm · Method: {result.agr.method} · Confidence:{" "}
-                {result.agr.confidence}
-              </p>
-              <p className="meta">{result.agr.disclaimer}</p>
-            </>
+            <AgrBreakdown
+              agr={result.agr}
+              areaSqm={result.square.area_sqm}
+              scenario={scenario}
+              onScenarioChange={setScenario}
+              postcode={result.postcode?.postcode}
+              lat={result.square.lat}
+              lng={result.square.lng}
+            />
           )}
         </div>
 

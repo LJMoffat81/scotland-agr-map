@@ -75,4 +75,6 @@ The original Streamlit prototype is preserved at git tag `legacy/streamlit-proto
 
 **Phase 1 complete:** UK HPI ETL, council-area lookup, Wightman residual valuation, postcode search (postcodes.io).
 
-**Phase 2 next:** Full AGR breakdown UI, scenario toggles, W3W nonprofit API.
+**Phase 2 complete:** Full AGR breakdown panel, three policy scenarios, live methodology page.
+
+**Phase 3 next:** Council boundary polygons, ROS parcel data, W3W nonprofit API.

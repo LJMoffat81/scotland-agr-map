@@ -4,6 +4,7 @@
 macro:
   rent_share_of_gdp: 0.50
   scotland_income_tax_replacement_gbp: 11500000000
+  estimated_scotland_annual_rent_gbp: 90000000000
   deadweight_loss_conventional: 0.10
   growth_boost_percentage_points: 2.0
 

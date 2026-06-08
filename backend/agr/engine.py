@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass
 
 from agr.areas import lookup_council
 from agr.config import load_config
+from agr.scenarios import compute_scenarios, resolve_active_scenario, scenario_to_dict
 from agr.valuation import residual_site_capital_per_sqm
 from spatial.grid import GridSquare
 
@@ -11,9 +12,12 @@ from spatial.grid import GridSquare
 @dataclass
 class AgrBreakdown:
     annual_ground_rent_gbp: float
+    economic_annual_rent_gbp: float
+    active_scenario: str
     site_rental_per_sqm_gbp: float
     site_capital_per_sqm_gbp: float
     despeculated_site_capital_per_sqm_gbp: float
+    despeculated_site_value_gbp: float
     site_share_used: float
     yield_rate: float
     capture_rate: float
@@ -24,14 +28,16 @@ class AgrBreakdown:
     council_code: str
     council_name: str
     average_price_gbp: int | None
+    scenarios: dict[str, dict]
 
 
-def calculate_square_agr(square: GridSquare) -> AgrBreakdown:
+def calculate_square_agr(square: GridSquare, scenario: str | None = None) -> AgrBreakdown:
     config = load_config()
     valuation = config["valuation"]
     despec = config["despeculation"]
     per_square = config["per_square"]
     site_share_cfg = config["site_share"]
+    active_scenario = resolve_active_scenario(scenario)
 
     council = lookup_council(square.lat, square.lng)
     site_capital_per_sqm, method, confidence, val_notes = residual_site_capital_per_sqm(
@@ -47,7 +53,17 @@ def calculate_square_agr(square: GridSquare) -> AgrBreakdown:
     yield_rate = valuation["yield_rate"]
     site_rental_per_sqm = despeculated_capital * yield_rate
     capture_rate = per_square["agr_capture_rate"]
-    annual_rent = site_rental_per_sqm * per_square["area_sqm"] * capture_rate
+    area_sqm = per_square["area_sqm"]
+    despeculated_site_value = despeculated_capital * area_sqm
+
+    economic_rent, scenario_charges = compute_scenarios(
+        site_rental_per_sqm=site_rental_per_sqm,
+        despeculated_site_capital_per_sqm=despeculated_capital,
+        area_sqm=area_sqm,
+        capture_rate=capture_rate,
+        config=config,
+    )
+    active_charge = scenario_charges[active_scenario].annual_charge_gbp
 
     site_share = (
         site_share_cfg["residential_slrg"]
@@ -62,10 +78,13 @@ def calculate_square_agr(square: GridSquare) -> AgrBreakdown:
     ]
 
     return AgrBreakdown(
-        annual_ground_rent_gbp=round(annual_rent, 2),
+        annual_ground_rent_gbp=active_charge,
+        economic_annual_rent_gbp=economic_rent,
+        active_scenario=active_scenario,
         site_rental_per_sqm_gbp=round(site_rental_per_sqm, 2),
         site_capital_per_sqm_gbp=round(site_capital_per_sqm, 2),
         despeculated_site_capital_per_sqm_gbp=round(despeculated_capital, 2),
+        despeculated_site_value_gbp=round(despeculated_site_value, 2),
         site_share_used=site_share,
         yield_rate=yield_rate,
         capture_rate=capture_rate,
@@ -76,6 +95,7 @@ def calculate_square_agr(square: GridSquare) -> AgrBreakdown:
         council_code=council.code,
         council_name=council.name,
         average_price_gbp=council.average_price_gbp if not council.rural else None,
+        scenarios={key: scenario_to_dict(value) for key, value in scenario_charges.items()},
     )
 
 

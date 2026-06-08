@@ -13,7 +13,7 @@ from spatial.grid import snap_to_w3w_grid
 app = FastAPI(
     title="Scotland AGR Map API",
     description="Annual Ground Rent estimates for What3Words 3x3m squares in Scotland",
-    version="0.2.0",
+    version="0.3.0",
 )
 
 app.add_middleware(
@@ -38,10 +38,10 @@ def _scotland_bounds_check(lat: float, lng: float) -> None:
         raise HTTPException(status_code=400, detail="Coordinates appear to be outside Scotland.")
 
 
-def _square_response(lat: float, lng: float) -> dict:
+def _square_response(lat: float, lng: float, scenario: str | None = None) -> dict:
     _scotland_bounds_check(lat, lng)
     square = snap_to_w3w_grid(lat, lng)
-    breakdown = calculate_square_agr(square)
+    breakdown = calculate_square_agr(square, scenario=scenario)
     return {
         "square": {
             "lat": square.lat,
@@ -61,7 +61,7 @@ def _square_response(lat: float, lng: float) -> dict:
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "service": "scotland-agr-map-api", "version": "0.2.0"}
+    return {"status": "ok", "service": "scotland-agr-map-api", "version": "0.3.0"}
 
 
 @app.get("/config")
@@ -74,6 +74,10 @@ def get_square(
     lat: float | None = Query(default=None, ge=-90, le=90),
     lng: float | None = Query(default=None, ge=-180, le=180),
     words: str | None = Query(default=None, description="What3Words address e.g. filled.count.soap"),
+    scenario: str | None = Query(
+        default="full_agr",
+        description="Policy scenario: full_agr, replace_income_tax, revenue_neutral",
+    ),
 ) -> dict:
     if words:
         raise HTTPException(
@@ -84,11 +88,20 @@ def get_square(
     if lat is None or lng is None:
         raise HTTPException(status_code=400, detail="Provide lat and lng, or words once W3W is configured.")
 
-    return _square_response(lat, lng)
+    try:
+        return _square_response(lat, lng, scenario=scenario)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/postcode/{postcode}")
-def get_postcode_square(postcode: str) -> dict:
+def get_postcode_square(
+    postcode: str,
+    scenario: str | None = Query(
+        default="full_agr",
+        description="Policy scenario: full_agr, replace_income_tax, revenue_neutral",
+    ),
+) -> dict:
     """Resolve a UK postcode via postcodes.io (free) and return AGR for that location."""
     normalised = postcode.replace(" ", "").upper()
     if len(normalised) < 5 or len(normalised) > 7:
@@ -118,7 +131,9 @@ def get_postcode_square(postcode: str) -> dict:
     lng = result["longitude"]
 
     try:
-        square_payload = _square_response(lat, lng)
+        square_payload = _square_response(lat, lng, scenario=scenario)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except HTTPException as exc:
         if exc.status_code == 400:
             raise HTTPException(
