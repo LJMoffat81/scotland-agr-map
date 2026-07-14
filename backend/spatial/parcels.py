@@ -26,6 +26,8 @@ _MERC_EXTENT = 20037508.342789244
 # Rough Scotland envelope in WGS84 — skip external WMS for distant tiles
 _SCOTLAND = (54.5, -9.0, 61.0, -0.5)  # south, west, north, east
 
+_http_client: httpx.Client | None = None
+
 
 @dataclass(frozen=True)
 class CadastralParcel:
@@ -42,6 +44,19 @@ def _parcel_cfg() -> dict:
     with SOURCES_PATH.open(encoding="utf-8") as handle:
         sources = yaml.safe_load(handle)
     return sources["parcels"]
+
+
+def _http() -> httpx.Client:
+    """Shared client so concurrent tile requests reuse connections."""
+    global _http_client
+    if _http_client is None:
+        timeout_s = float(_parcel_cfg().get("timeout_seconds", 8.0))
+        _http_client = httpx.Client(
+            timeout=httpx.Timeout(timeout_s, connect=3.0),
+            limits=httpx.Limits(max_connections=32, max_keepalive_connections=16),
+            headers={"User-Agent": "scotland-agr-map/0.8 (research; parcel tiles)"},
+        )
+    return _http_client
 
 
 def _compute_area_sqm(geometry: dict) -> float:
@@ -90,19 +105,16 @@ def _feature_at(lat_key: float, lng_key: float) -> tuple | None:
     }
 
     try:
-        with httpx.Client(timeout=cfg.get("timeout_seconds", 10.0)) as client:
-            response = client.get(cfg["wms_url"], params=params)
-            response.raise_for_status()
-            payload = response.json()
-    except (httpx.HTTPError, ValueError):
+        response = _http().get(cfg["wms_url"], params=params)
+        response.raise_for_status()
+        payload = response.json()
+    except (httpx.HTTPError, ValueError, TypeError):
         return None
 
     features = payload.get("features") or []
     if not features:
         return None
-    # Return as plain dict-friendly tuple path — store feature JSON fields
-    feature = features[0]
-    return (feature,)
+    return (features[0],)
 
 
 def lookup_parcel(lat: float, lng: float) -> CadastralParcel | None:
@@ -145,55 +157,60 @@ def tile_bounds_3857(z: int, x: int, y: int) -> tuple[float, float, float, float
 
 def tile_intersects_scotland(z: int, x: int, y: int) -> bool:
     """Cheap reject for tiles well outside Scotland (WGS84 envelope)."""
-    minx, miny, maxx, maxy = tile_bounds_3857(z, x, y)
-    # Approximate lon/lat from mercator edges
-    def lon(mx: float) -> float:
-        return mx / _MERC_EXTENT * 180.0
+    try:
+        minx, miny, maxx, maxy = tile_bounds_3857(z, x, y)
 
-    def lat(my: float) -> float:
-        return math.degrees(math.atan(math.sinh(my / _MERC_EXTENT * math.pi)))
+        def lon(mx: float) -> float:
+            return mx / _MERC_EXTENT * 180.0
 
-    west, east = lon(minx), lon(maxx)
-    south, north = lat(miny), lat(maxy)
-    s, w, n, e = _SCOTLAND
-    return not (east < w or west > e or north < s or south > n)
+        def lat(my: float) -> float:
+            # Clamp to avoid sinh overflow near poles
+            t = max(-1.0 + 1e-12, min(1.0 - 1e-12, my / _MERC_EXTENT))
+            return math.degrees(math.atan(math.sinh(t * math.pi)))
+
+        west, east = lon(minx), lon(maxx)
+        south, north = lat(miny), lat(maxy)
+        s, w, n, e = _SCOTLAND
+        return not (east < w or west > e or north < s or south > n)
+    except (OverflowError, ValueError, ZeroDivisionError):
+        return False
 
 
 def fetch_parcel_tile_png(z: int, x: int, y: int) -> bytes:
     """
     Proxy ROS INSPIRE WMS GetMap as a MapLibre XYZ PNG tile.
-    Cadastral parcel outlines for property boundaries.
+    Always returns PNG bytes — never raises (map tiles must not 500).
     """
-    if z < 12 or z > 19:
-        return TRANSPARENT_PNG
-    n = 2**z
-    if x < 0 or y < 0 or x >= n or y >= n:
-        return TRANSPARENT_PNG
-    if not tile_intersects_scotland(z, x, y):
-        return TRANSPARENT_PNG
-
-    cfg = _parcel_cfg()
-    minx, miny, maxx, maxy = tile_bounds_3857(z, x, y)
-    params = {
-        "SERVICE": "WMS",
-        "VERSION": "1.1.1",
-        "REQUEST": "GetMap",
-        "LAYERS": cfg["wms_layer"],
-        "STYLES": "",
-        "SRS": "EPSG:3857",
-        "BBOX": f"{minx},{miny},{maxx},{maxy}",
-        "WIDTH": "256",
-        "HEIGHT": "256",
-        "FORMAT": "image/png",
-        "TRANSPARENT": "true",
-    }
     try:
-        with httpx.Client(timeout=cfg.get("timeout_seconds", 12.0)) as client:
-            response = client.get(cfg["wms_url"], params=params)
-            response.raise_for_status()
-            content_type = (response.headers.get("content-type") or "").lower()
-            if "png" not in content_type and not response.content.startswith(b"\x89PNG"):
-                return TRANSPARENT_PNG
-            return response.content
-    except httpx.HTTPError:
+        if z < 12 or z > 19:
+            return TRANSPARENT_PNG
+        n = 2**z
+        if x < 0 or y < 0 or x >= n or y >= n:
+            return TRANSPARENT_PNG
+        if not tile_intersects_scotland(z, x, y):
+            return TRANSPARENT_PNG
+
+        cfg = _parcel_cfg()
+        minx, miny, maxx, maxy = tile_bounds_3857(z, x, y)
+        params = {
+            "SERVICE": "WMS",
+            "VERSION": "1.1.1",
+            "REQUEST": "GetMap",
+            "LAYERS": cfg["wms_layer"],
+            "STYLES": "",
+            "SRS": "EPSG:3857",
+            "BBOX": f"{minx},{miny},{maxx},{maxy}",
+            "WIDTH": "256",
+            "HEIGHT": "256",
+            "FORMAT": "image/png",
+            "TRANSPARENT": "true",
+        }
+        response = _http().get(cfg["wms_url"], params=params)
+        if response.status_code != 200:
+            return TRANSPARENT_PNG
+        content = response.content
+        if not content.startswith(b"\x89PNG"):
+            return TRANSPARENT_PNG
+        return content
+    except Exception:
         return TRANSPARENT_PNG

@@ -28,7 +28,7 @@ from spatial.w3w import (
 )
 from layers.councils_layer import build_councils_agr_geojson
 from layers.grid_layer import build_w3w_agr_grid
-from spatial.parcels import fetch_parcel_tile_png, lookup_parcel_geojson
+from spatial.parcels import TRANSPARENT_PNG, fetch_parcel_tile_png, lookup_parcel_geojson
 from validation.glasgow_ward_18 import run_validation
 from validation.ratio_study import ratio_study_points
 
@@ -220,15 +220,15 @@ def layer_w3w_grid(
     return JSONResponse(geo)
 
 
-@app.get("/layers/parcels/tiles/{z}/{x}/{y}.png")
-def layer_parcel_tiles(z: int, x: int, y: int) -> Response:
-    """
-    ROS INSPIRE cadastral parcel boundaries as XYZ PNG tiles (proxied WMS).
-    Use from ~zoom 14+; transparent outside Scotland / on errors.
-    """
-    if z < 0 or z > 22:
-        raise HTTPException(status_code=400, detail="Invalid tile zoom")
-    png = fetch_parcel_tile_png(z, x, y)
+def _parcel_tile_response(z: int, x: int, y: int) -> Response:
+    """Always 200 + PNG so MapLibre / Next rewrites never surface tile 500s."""
+    try:
+        if z < 0 or z > 22 or x < 0 or y < 0:
+            png = TRANSPARENT_PNG
+        else:
+            png = fetch_parcel_tile_png(z, x, y)
+    except Exception:
+        png = TRANSPARENT_PNG
     return Response(
         content=png,
         media_type="image/png",
@@ -237,6 +237,18 @@ def layer_parcel_tiles(z: int, x: int, y: int) -> Response:
             "X-Layer-Source": "ROS-INSPIRE-CP.CadastralParcel",
         },
     )
+
+
+@app.get("/layers/parcels/tiles/{z}/{x}/{y}.png")
+def layer_parcel_tiles_png(z: int, x: int, y: int) -> Response:
+    """ROS INSPIRE cadastral parcels as XYZ PNG (with .png suffix)."""
+    return _parcel_tile_response(z, x, y)
+
+
+@app.get("/layers/parcels/tiles/{z}/{x}/{y}")
+def layer_parcel_tiles(z: int, x: int, y: int) -> Response:
+    """ROS INSPIRE cadastral parcels as XYZ PNG (extensionless, preferred)."""
+    return _parcel_tile_response(z, x, y)
 
 
 @app.get("/layers/parcels/at")

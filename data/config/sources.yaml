@@ -50,7 +50,8 @@ parcels:
   wms_url: https://ros-inspire.themapcloud.com/maps/wms
   wms_layer: CP.CadastralParcel
   query_delta_degrees: 0.001
-  timeout_seconds: 10
+  # Keep short so map tiles fail soft (transparent) instead of hanging the UI
+  timeout_seconds: 6
 
 sales:
   status: scaffolded

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import maplibregl, { Map, GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import AgrBreakdown, { AgrResult, ScenarioId } from "./AgrBreakdown";
-import { apiFetch, apiJson, getApiBaseUrl, pingApi } from "../lib/api";
+import { apiFetch, apiJson, pingApi } from "../lib/api";
 
 type ParcelFeature = GeoJSON.Feature<
   GeoJSON.Polygon | GeoJSON.MultiPolygon,
@@ -288,22 +288,22 @@ export default function ScotlandMap() {
         paint: { "line-color": "#7f0000", "line-width": 0.4, "line-opacity": 0.4 },
       });
 
-      // ROS INSPIRE property boundaries (WMS via API tile proxy)
-      const apiBase = getApiBaseUrl().replace(/\/$/, "");
+      // Property boundaries via Next route (soft-fails to blank tile, no console 500s)
       map.addSource("parcels-wms", {
         type: "raster",
-        tiles: [`${apiBase}/layers/parcels/tiles/{z}/{x}/{y}.png`],
+        tiles: ["/api/parcels/tiles/{z}/{x}/{y}"],
         tileSize: 256,
-        minzoom: 13,
+        minzoom: 14,
         maxzoom: 19,
+        scheme: "xyz",
         attribution: "© Registers of Scotland (INSPIRE cadastral parcels)",
       });
       map.addLayer({
         id: "parcels-wms",
         type: "raster",
         source: "parcels-wms",
-        minzoom: 13,
-        paint: { "raster-opacity": 0.9 },
+        minzoom: 14,
+        paint: { "raster-opacity": 0.9, "raster-fade-duration": 0 },
         layout: { visibility: "visible" },
       });
 
