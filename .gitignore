@@ -20,6 +20,7 @@ data/processed/*
 !data/processed/councils.json
 !data/processed/scotland_councils.geojson
 !data/processed/glasgow_ward_18.geojson
+!data/processed/context_by_council.json
 # batch demos
 data/processed/demo_roll.*
 data/processed/roll_*.csv
