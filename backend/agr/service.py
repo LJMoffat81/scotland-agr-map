@@ -1,7 +1,7 @@
 """Professional valuation service facade.
 
 Single entry for API and batch jobs. Keeps residual engine as default method;
-sales store is available for future comparable / OpenAVMKit paths.
+sales store powers comparable residual cross-checks when data is loaded.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from typing import Any
 from agr.config import load_config
 from agr.engine import AgrBreakdown, calculate_square_agr
 from agr.overrides import merge_config_overrides
+from agr.sales_comps import build_sales_comp_report
 from datasources.sales_store import SalesStore
 from spatial.grid import GridSquare, snap_to_w3w_grid
 
@@ -32,7 +33,12 @@ class ValuationService:
     def default(cls) -> ValuationService:
         sales = None
         try:
-            sales = SalesStore.load_default_fixture()
+            # Prefer licensed extract when present
+            licensed = SalesStore.try_load_licensed("sales.jsonl")
+            if licensed is not None and len(licensed) > 0:
+                sales = licensed
+            else:
+                sales = SalesStore.load_default_fixture()
         except FileNotFoundError:
             sales = SalesStore()
         return cls(sales=sales)
@@ -71,31 +77,26 @@ class ValuationService:
         return calculate_square_agr(square, scenario=scenario, config=self.config)
 
     def sales_context(self, lat: float, lng: float, *, limit: int = 10) -> dict[str, Any]:
-        """Nearby sales for professional review (fixtures or licensed)."""
+        """Nearby sales + extraction residual cross-check."""
         if self.sales is None or len(self.sales) == 0:
             return {
                 "available": False,
                 "reason": "No sales store loaded. Ingest ROS/licensed data or fixtures.",
                 "count": 0,
                 "nearest": [],
+                "comp_report": None,
             }
-        nearest = self.sales.nearest(lat, lng, limit=limit)
+
+        report = build_sales_comp_report(
+            lat, lng, self.sales, config=self.config, limit=limit
+        )
         return {
-            "available": True,
-            "count": len(nearest),
+            "available": report.available,
+            "count": report.sample_count,
             "store_summary": self.sales.summary(),
-            "nearest": [
-                {
-                    "distance_km": round(dist, 3),
-                    "price_gbp": tx.price_gbp,
-                    "transfer_date": tx.transfer_date,
-                    "postcode": tx.postcode,
-                    "property_type": tx.property_type,
-                    "provenance": tx.provenance.to_dict(),
-                    "production_eligible": tx.provenance.is_production_eligible(),
-                }
-                for dist, tx in nearest
-            ],
+            "comp_report": report.to_dict(),
+            "nearest": report.comps,
+            "disclaimer": report.disclaimer,
         }
 
     def assess_with_context(
@@ -107,7 +108,7 @@ class ValuationService:
         include_sales: bool = True,
     ) -> dict[str, Any]:
         breakdown = self.assess_point(lat, lng, scenario=scenario)
-        payload = {
+        payload: dict[str, Any] = {
             "method_family": "valuer_residual_roll",
             "agr": asdict(breakdown),
         }

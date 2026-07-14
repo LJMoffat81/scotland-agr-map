@@ -58,6 +58,30 @@ export type AgrResult = {
   sensitivity_overrides?: Record<string, number>;
 };
 
+export type SalesContext = {
+  available?: boolean;
+  count?: number;
+  disclaimer?: string;
+  comp_report?: {
+    production_ready?: boolean;
+    sample_count?: number;
+    synthetic_count?: number;
+    median_price_gbp?: number | null;
+    median_implied_site_share?: number | null;
+    median_site_capital_per_sqm_gbp?: number | null;
+    median_annual_rent_per_sqm_gbp?: number | null;
+    disclaimer?: string;
+    method?: string;
+  } | null;
+  nearest?: Array<{
+    distance_km: number;
+    price_gbp: number;
+    transfer_date: string;
+    postcode?: string | null;
+    production_eligible?: boolean;
+  }>;
+};
+
 type Props = {
   agr: AgrResult;
   areaSqm: number;
@@ -68,6 +92,7 @@ type Props = {
   lng: number;
   what3words?: string | null;
   w3wConfigured?: boolean;
+  salesContext?: SalesContext | null;
 };
 
 type DetailTab = "summary" | "calculate" | "about";
@@ -122,6 +147,7 @@ export default function AgrBreakdown({
   lng,
   what3words,
   w3wConfigured,
+  salesContext,
 }: Props) {
   const [tab, setTab] = useState<DetailTab>("summary");
   const active = agr.scenarios[scenario];
@@ -341,6 +367,49 @@ export default function AgrBreakdown({
                 {agr.integrity_caveats.map((caveat) => (
                   <li key={caveat}>{caveat}</li>
                 ))}
+              </ul>
+            </details>
+          )}
+
+          {salesContext?.available && salesContext.comp_report && (
+            <details className="notes-details" open>
+              <summary>Sales comparable cross-check (research)</summary>
+              <p className="meta">
+                {salesContext.comp_report.disclaimer || salesContext.disclaimer}
+              </p>
+              <ul className="summary-list">
+                <li>
+                  <strong>Samples:</strong> {salesContext.comp_report.sample_count} within
+                  search radius
+                  {salesContext.comp_report.synthetic_count
+                    ? ` (${salesContext.comp_report.synthetic_count} synthetic)`
+                    : ""}
+                </li>
+                {salesContext.comp_report.median_price_gbp != null && (
+                  <li>
+                    <strong>Median sale price:</strong>{" "}
+                    {formatGbp(salesContext.comp_report.median_price_gbp, 0)}
+                  </li>
+                )}
+                {salesContext.comp_report.median_implied_site_share != null && (
+                  <li>
+                    <strong>Median implied land share (MV−DRC):</strong>{" "}
+                    {(salesContext.comp_report.median_implied_site_share * 100).toFixed(0)}%
+                  </li>
+                )}
+                {salesContext.comp_report.median_site_capital_per_sqm_gbp != null && (
+                  <li>
+                    <strong>Median site capital:</strong>{" "}
+                    {formatGbp(salesContext.comp_report.median_site_capital_per_sqm_gbp)}
+                    /m² (comps)
+                  </li>
+                )}
+                <li>
+                  <strong>Production-ready:</strong>{" "}
+                  {salesContext.comp_report.production_ready
+                    ? "Yes (licensed sales only)"
+                    : "No — fixture or mixed data; primary residual unchanged"}
+                </li>
               </ul>
             </details>
           )}

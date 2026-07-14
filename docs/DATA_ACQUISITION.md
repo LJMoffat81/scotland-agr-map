@@ -63,5 +63,13 @@ Load via:
 
 ```powershell
 cd backend
-python -m etl.ingest_sales --path ../data/licensed/ros_glasgow_sales_2024.parquet --source ros
+# CSV from ROS/partner → JSONL
+python -m etl.convert_sales_csv --input ../data/licensed/raw.csv --output ../data/licensed/sales.jsonl `
+  --source ros --licence ROS-research `
+  --map price=Price,date=Date,postcode=Postcode,lat=Lat,lng=Lng,floor_area=FloorArea
+
+# Validate (must be production-eligible)
+python -m etl.ingest_sales --path ../data/licensed/sales.jsonl --require-production
 ```
+
+Enquiry template: [ROS_ENQUIRY.md](ROS_ENQUIRY.md).

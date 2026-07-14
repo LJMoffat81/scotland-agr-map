@@ -16,6 +16,7 @@ type SquareResponse = {
   agr: AgrResult;
   what3words?: string | null;
   w3w_configured?: boolean;
+  sales_context?: import("./AgrBreakdown").SalesContext | null;
   postcode?: {
     postcode: string;
     admin_district: string | null;
@@ -93,6 +94,7 @@ export default function ScotlandMap() {
   const [yieldPct, setYieldPct] = useState(5);
   const [urbanPickardPct, setUrbanPickardPct] = useState(70);
   const [wardStory, setWardStory] = useState<string | null>(null);
+  const [includeSales, setIncludeSales] = useState(true);
 
   const sensitivityQuery = useCallback(() => {
     const params = new URLSearchParams();
@@ -101,9 +103,10 @@ export default function ScotlandMap() {
     // Only send when different from defaults so base case stays clean
     if (Math.abs(y - 0.05) > 1e-9) params.set("yield_rate", y.toFixed(4));
     if (Math.abs(u - 0.7) > 1e-9) params.set("urban_speculation", u.toFixed(4));
+    if (includeSales) params.set("include_sales_context", "true");
     const s = params.toString();
     return s ? `&${s}` : "";
-  }, [yieldPct, urbanPickardPct]);
+  }, [yieldPct, urbanPickardPct, includeSales]);
 
   const applyResult = useCallback((payload: SquareResponse) => {
     setResult(payload);
@@ -534,6 +537,18 @@ export default function ScotlandMap() {
               >
                 Re-estimate with assumptions
               </button>
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={includeSales}
+                  onChange={(e) => setIncludeSales(e.target.checked)}
+                />
+                Include sales comparable cross-check
+              </label>
+              <p className="meta">
+                Uses local sales store (synthetic fixtures until ROS/licensed data is
+                ingested). Never scrapes property portals.
+              </p>
               <button
                 type="button"
                 className="scenario-tab"
@@ -577,6 +592,7 @@ export default function ScotlandMap() {
                 lng={result.square.lng}
                 what3words={result.what3words}
                 w3wConfigured={result.w3w_configured}
+                salesContext={result.sales_context}
               />
             )}
           </div>
