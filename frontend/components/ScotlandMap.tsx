@@ -11,9 +11,11 @@ type SquareResponse = {
     lng: number;
     area_sqm: number;
     polygon: GeoJSON.Polygon;
+    grid?: string;
   };
   agr: AgrResult;
-  what3words?: string;
+  what3words?: string | null;
+  w3w_configured?: boolean;
   postcode?: {
     postcode: string;
     admin_district: string | null;
@@ -110,11 +112,16 @@ export default function ScotlandMap() {
       map.flyTo({ center: [payload.square.lng, payload.square.lat], zoom: 16 });
     }
 
-    // Shareable deep link (lat/lng only — scenarios switch client-side)
+    // Shareable deep link (lat/lng; W3W words when known)
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       url.searchParams.set("lat", payload.square.lat.toFixed(6));
       url.searchParams.set("lng", payload.square.lng.toFixed(6));
+      if (payload.what3words) {
+        url.searchParams.set("words", payload.what3words);
+      } else {
+        url.searchParams.delete("words");
+      }
       window.history.replaceState({}, "", url.toString());
     }
   }, []);
@@ -233,11 +240,14 @@ export default function ScotlandMap() {
         paint: { "line-color": "#c8102e", "line-width": 2 },
       });
 
-      // Deep link or default Edinburgh demo
+      // Deep link: prefer W3W words, else lat/lng
       const params = new URLSearchParams(window.location.search);
+      const qWords = params.get("words");
       const qLat = params.get("lat");
       const qLng = params.get("lng");
-      if (qLat && qLng) {
+      if (qWords) {
+        void fetchWords(qWords);
+      } else if (qLat && qLng) {
         void fetchSquare(Number(qLat), Number(qLng));
       }
     });
@@ -308,8 +318,8 @@ export default function ScotlandMap() {
         <div className="brand">
           <h1>Scotland AGR Map</h1>
           <p>
-            See the community-created Annual Ground Rent under any place in Scotland —
-            research estimate for education, not a tax bill.
+            Annual Ground Rent on every What3Words 3×3 m square in Scotland — research
+            estimate for education, not a tax bill.
           </p>
         </div>
 
@@ -344,6 +354,10 @@ export default function ScotlandMap() {
           <div className="panel find-place">
             <details open={!result}>
               <summary>Find a place</summary>
+              <p className="meta" style={{ marginTop: "0.5rem" }}>
+                Every estimate snaps to a <strong>What3Words 3×3 m square</strong> — the
+                original precision unit of this map.
+              </p>
               <div className="field" style={{ marginTop: "0.75rem" }}>
                 <label htmlFor="postcode">Postcode</label>
                 <input
@@ -363,8 +377,33 @@ export default function ScotlandMap() {
                 {loading ? "Looking up…" : "Search postcode"}
               </button>
 
+              <div className="field" style={{ marginTop: "0.85rem" }}>
+                <label htmlFor="words">What3Words (///three.word.address)</label>
+                <input
+                  id="words"
+                  value={words}
+                  onChange={(event) => setWords(event.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void fetchWords(words);
+                  }}
+                  placeholder="filled.count.soap"
+                />
+              </div>
+              <button
+                className="primary"
+                disabled={loading}
+                onClick={() => void fetchWords(words)}
+                style={{ background: "#001a3a" }}
+              >
+                {loading ? "Resolving…" : "Search What3Words"}
+              </button>
+              <p className="meta" style={{ marginTop: "0.5rem" }}>
+                Needs <code>W3W_API_KEY</code> on the backend (SLRG nonprofit application).
+                Without a key, map clicks still use the W3W-aligned 3 m grid.
+              </p>
+
               <details style={{ marginTop: "0.85rem" }}>
-                <summary style={{ fontSize: "0.85rem" }}>Coordinates or What3Words</summary>
+                <summary style={{ fontSize: "0.85rem" }}>Coordinates</summary>
                 <div className="field" style={{ marginTop: "0.65rem" }}>
                   <label htmlFor="lat">Latitude</label>
                   <input id="lat" value={lat} onChange={(e) => setLat(e.target.value)} />
@@ -380,24 +419,6 @@ export default function ScotlandMap() {
                 >
                   {loading ? "Calculating…" : "Estimate AGR"}
                 </button>
-                <div className="field" style={{ marginTop: "0.75rem" }}>
-                  <label htmlFor="words">What3Words</label>
-                  <input
-                    id="words"
-                    value={words}
-                    onChange={(event) => setWords(event.target.value)}
-                  />
-                </div>
-                <button
-                  className="primary"
-                  disabled={loading}
-                  onClick={() => void fetchWords(words)}
-                >
-                  {loading ? "Resolving…" : "Search W3W"}
-                </button>
-                <p className="meta" style={{ marginTop: "0.5rem" }}>
-                  W3W needs a backend API key (optional).
-                </p>
               </details>
             </details>
           </div>
@@ -444,6 +465,8 @@ export default function ScotlandMap() {
                 postcode={result.postcode?.postcode}
                 lat={result.square.lat}
                 lng={result.square.lng}
+                what3words={result.what3words}
+                w3wConfigured={result.w3w_configured}
               />
             )}
           </div>
@@ -470,7 +493,7 @@ export default function ScotlandMap() {
         <div id="map" ref={mapContainer} />
         {!result && (
           <div className="map-hint">
-            Click anywhere in Scotland to estimate Annual Ground Rent
+            Click anywhere in Scotland — snaps to a What3Words 3×3 m cell
           </div>
         )}
       </div>

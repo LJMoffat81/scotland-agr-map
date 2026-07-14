@@ -65,6 +65,8 @@ type Props = {
   postcode?: string;
   lat: number;
   lng: number;
+  what3words?: string | null;
+  w3wConfigured?: boolean;
 };
 
 type DetailTab = "summary" | "calculate" | "about";
@@ -117,6 +119,8 @@ export default function AgrBreakdown({
   postcode,
   lat,
   lng,
+  what3words,
+  w3wConfigured,
 }: Props) {
   const [tab, setTab] = useState<DetailTab>("summary");
   const active = agr.scenarios[scenario];
@@ -141,16 +145,34 @@ export default function AgrBreakdown({
     .filter(Boolean)
     .join(" · ");
 
+  const w3wDisplay = what3words
+    ? `///${what3words.replace(/^\/+/, "")}`
+    : null;
+
   return (
     <div className="clarity-result">
       <p className="pitch">
         Scotland&apos;s land has an annual rental value the community creates. Here is an
-        estimate of that <strong>Annual Ground Rent</strong> for this place.
+        estimate of that <strong>Annual Ground Rent</strong> for this place — measured on a{" "}
+        <strong>What3Words 3×3 m cell</strong>.
       </p>
 
       <p className="location-line">
         {locationLine || `${lat.toFixed(5)}, ${lng.toFixed(5)}`}
       </p>
+
+      {w3wDisplay ? (
+        <p className="w3w-address" title="What3Words address for this 3×3 m cell">
+          {w3wDisplay}
+        </p>
+      ) : (
+        <p className="w3w-address muted" title="W3W-aligned grid cell">
+          3×3 m W3W-aligned cell
+          {!w3wConfigured
+            ? " (///words when W3W_API_KEY is set)"
+            : " (///words unavailable for this point)"}
+        </p>
+      )}
 
       <div className="agr-value" aria-live="polite">
         {formatGbp(headline, headline >= 100 ? 0 : 2)}
@@ -159,7 +181,11 @@ export default function AgrBreakdown({
       <p className="headline-caption">
         {headlineIsPlot
           ? `Typical plot-scale estimate (~${agr.notional_plot_sqm?.toLocaleString("en-GB")} m²) under “${SCENARIO_SHORT[scenario]}”`
-          : `For this ${areaSqm} m² map cell under “${SCENARIO_SHORT[scenario]}”`}
+          : `For this ${areaSqm} m² W3W cell under “${SCENARIO_SHORT[scenario]}”`}
+      </p>
+      <p className="w3w-cell-line">
+        This map cell: {formatGbp(active.annual_charge_gbp)}/year on {areaSqm} m² (one
+        What3Words square)
       </p>
 
       <p className="plain-why">{SCENARIO_PLAIN[scenario]}</p>
@@ -179,13 +205,6 @@ export default function AgrBreakdown({
           </button>
         ))}
       </div>
-
-      {headlineIsPlot && (
-        <p className="meta cell-secondary">
-          Map cell ({areaSqm} m²): {formatGbp(active.annual_charge_gbp)}/year · same rate
-          per square metre
-        </p>
-      )}
 
       <div className="detail-tabs" role="tablist" aria-label="Result details">
         {(
@@ -213,6 +232,11 @@ export default function AgrBreakdown({
           <ul className="summary-list">
             <li>
               <strong>Council:</strong> {agr.council_name}
+            </li>
+            <li>
+              <strong>What3Words cell:</strong>{" "}
+              {w3wDisplay ?? "3×3 m grid (aligned with W3W)"} · {areaSqm} m² ·{" "}
+              {formatGbp(active.annual_charge_gbp)}/year this scenario
             </li>
             {agr.parcel_id && (
               <li>

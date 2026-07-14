@@ -28,6 +28,8 @@ Also see: Mill, Paine, **School of Cooperative Individualism** (Georgist source 
 
 **Product clarity:** the map default is a plain £/year estimate and short policy choices; valuer steps, integrity caveats, and full lineage live under **How calculated** / **About AGR** and [methodology](docs/methodology.md).
 
+**What3Words:** every estimate snaps to a **3×3 m W3W-aligned cell**. Plot-scale £/year is the household headline; the cell line always shows the 9 m² square charge. With `W3W_API_KEY`, the API reverse-geocodes `///three.word.address` on every lookup.
+
 Built for [SLRG](https://www.slrg.scot) as a standalone public education and advocacy tool.
 
 ## Stack

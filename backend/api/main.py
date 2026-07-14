@@ -13,13 +13,19 @@ from api.cors import cors_settings
 from agr.engine import breakdown_to_dict, calculate_square_agr
 from agr.config import load_config
 from spatial.grid import snap_to_w3w_grid
-from spatial.w3w import W3WNotConfiguredError, words_to_coordinates
+from spatial.w3w import (
+    W3WNotConfiguredError,
+    is_configured as w3w_is_configured,
+    normalise_words,
+    try_coordinates_to_words,
+    words_to_coordinates,
+)
 from validation.glasgow_ward_18 import run_validation
 
 app = FastAPI(
     title="Scotland AGR Map API",
     description="Annual Ground Rent estimates for What3Words 3x3m squares in Scotland",
-    version="0.5.0",
+    version="0.5.1",
 )
 
 _allowed_origins, _allowed_origin_regex = cors_settings()
@@ -49,15 +55,28 @@ def _scotland_bounds_check(lat: float, lng: float) -> None:
         raise HTTPException(status_code=400, detail="Coordinates appear to be outside Scotland.")
 
 
-def _square_response(lat: float, lng: float, scenario: str | None = None) -> dict:
+def _square_response(
+    lat: float,
+    lng: float,
+    scenario: str | None = None,
+    *,
+    words_hint: str | None = None,
+) -> dict:
     _scotland_bounds_check(lat, lng)
     square = snap_to_w3w_grid(lat, lng)
     breakdown = calculate_square_agr(square, scenario=scenario)
+
+    # Prefer caller-supplied words; otherwise reverse-geocode snapped cell if key present
+    what3words = words_hint
+    if what3words is None:
+        what3words = try_coordinates_to_words(square.lat, square.lng)
+
     return {
         "square": {
             "lat": square.lat,
             "lng": square.lng,
             "area_sqm": square.area_sqm,
+            "grid": "what3words_3m",
             "bounds": {
                 "south": square.south,
                 "west": square.west,
@@ -66,6 +85,8 @@ def _square_response(lat: float, lng: float, scenario: str | None = None) -> dic
             },
             "polygon": square.geojson_polygon,
         },
+        "what3words": what3words,
+        "w3w_configured": w3w_is_configured(),
         "agr": breakdown_to_dict(breakdown),
     }
 
@@ -86,8 +107,8 @@ def health() -> dict:
     return {
         "status": "ok",
         "service": "scotland-agr-map-api",
-        "version": "0.5.0",
-        "w3w_configured": bool(__import__("os").getenv("W3W_API_KEY")),
+        "version": "0.5.1",
+        "w3w_configured": w3w_is_configured(),
         "economist_signoff_status": signoff.get("status", "unknown"),
     }
 
@@ -132,9 +153,13 @@ def get_square(
         description="Policy scenario: full_agr, replace_income_tax, revenue_neutral",
     ),
 ) -> dict:
+    words_hint: str | None = None
     if words:
         try:
             coords = words_to_coordinates(words)
+            words_hint = normalise_words(words)
+            if coords.words:
+                words_hint = coords.words
         except W3WNotConfiguredError as exc:
             raise HTTPException(status_code=501, detail=str(exc)) from exc
         except ValueError as exc:
@@ -149,13 +174,9 @@ def get_square(
         )
 
     try:
-        payload = _square_response(lat, lng, scenario=scenario)
+        return _square_response(lat, lng, scenario=scenario, words_hint=words_hint)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    if words:
-        payload["what3words"] = words
-    return payload
 
 
 @app.get("/postcode/{postcode}")
