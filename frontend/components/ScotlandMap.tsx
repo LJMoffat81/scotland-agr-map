@@ -236,14 +236,20 @@ export default function ScotlandMap() {
       style: {
         version: 8,
         sources: {
-          osm: {
+          // Carto basemap — reliable in browsers (OSM.org tiles often rate-limit → Failed to fetch)
+          basemap: {
             type: "raster",
-            tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+            tiles: [
+              "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+              "https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+              "https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+            ],
             tileSize: 256,
-            attribution: "© OpenStreetMap contributors",
+            attribution:
+              "© OpenStreetMap contributors © CARTO",
           },
         },
-        layers: [{ id: "osm", type: "raster", source: "osm" }],
+        layers: [{ id: "basemap", type: "raster", source: "basemap" }],
       },
       center: [-4.2, 56.8],
       zoom: 6.2,
@@ -411,8 +417,8 @@ export default function ScotlandMap() {
         setApiOk(true);
       })
       .catch((err: Error) => {
+        // Layer failure is not a total outage — keep map usable
         setError(err.message);
-        setApiOk(false);
       })
       .finally(() => {
         if (!cancelled) setLayerBusy(false);
@@ -442,37 +448,41 @@ export default function ScotlandMap() {
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let inFlight = false;
 
     const loadGrid = () => {
-      if (cancelled || !mapRef.current) return;
+      if (cancelled || !mapRef.current || inFlight) return;
       const b = map.getBounds();
       if (!b) return;
-      if (map.getZoom() < 11) {
+      if (map.getZoom() < 12) {
         setVis("none");
         return;
       }
+      inFlight = true;
       setLayerBusy(true);
+      // Keep cell count modest so the API is not overwhelmed alongside parcel tiles
       const path =
         `/layers/w3w-grid?south=${b.getSouth()}&west=${b.getWest()}` +
-        `&north=${b.getNorth()}&east=${b.getEast()}&scenario=${scenario}&max_cells=600`;
+        `&north=${b.getNorth()}&east=${b.getEast()}&scenario=${scenario}&max_cells=200`;
       void apiJson<GeoJSON.FeatureCollection>(path)
         .then((data) => {
           if (cancelled) return;
           (map.getSource("w3w-agr-grid") as GeoJSONSource)?.setData(data);
           setVis("visible");
         })
-        .catch((err: Error) => {
-          setError(err.message);
-          setApiOk(false);
+        .catch(() => {
+          // Soft-fail: cell grid is optional; do not mark API offline or spam console
+          if (!cancelled) setVis("none");
         })
         .finally(() => {
+          inFlight = false;
           if (!cancelled) setLayerBusy(false);
         });
     };
 
     const onMove = () => {
       if (timer) clearTimeout(timer);
-      timer = setTimeout(loadGrid, 400);
+      timer = setTimeout(loadGrid, 700);
     };
 
     loadGrid();

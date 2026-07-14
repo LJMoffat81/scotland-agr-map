@@ -91,10 +91,14 @@ export async function apiFetch(
   if (!response.ok) {
     let detail = `API error ${response.status}`;
     try {
-      const body = (await response.json()) as { detail?: string };
+      const body = (await response.json()) as { detail?: string; ok?: boolean };
       if (body?.detail) detail = String(body.detail);
     } catch {
       /* ignore non-JSON error bodies */
+    }
+    // 503 from our proxy = soft API issue, clearer message
+    if (response.status === 503 && !detail.startsWith("API")) {
+      detail = `API unreachable. ${detail}`;
     }
     throw new ApiError(detail, url, response.status);
   }
