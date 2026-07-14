@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import maplibregl, { Map, GeoJSONSource } from "maplibre-gl";
+import maplibregl, { Map, GeoJSONSource, ExpressionSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import AgrBreakdown, { AgrResult, ScenarioId } from "./AgrBreakdown";
 import { apiFetch, apiJson, pingApi } from "../lib/api";
@@ -36,30 +36,139 @@ type SquareResponse = {
   };
 };
 
+type MetricId =
+  | "agr_plot"
+  | "rent_per_sqm"
+  | "house_price"
+  | "agr_price_pct"
+  | "land_share"
+  | "site_capital"
+  | "simd"
+  | "pop_density";
+
+type MetricDef = {
+  id: MetricId;
+  property: string;
+  label: string;
+  group: "value" | "context";
+  stops: [number, string][];
+};
+
 const emptyCollection: GeoJSON.FeatureCollection = {
   type: "FeatureCollection",
   features: [],
 };
 
-const PLOT_AGR_COLOR: maplibregl.ExpressionSpecification = [
-  "interpolate",
-  ["linear"],
-  ["coalesce", ["get", "annual_ground_rent_plot_gbp"], 0],
-  0,
-  "#ffffcc",
-  500,
-  "#c7e9b4",
-  1500,
-  "#7fcdbb",
-  3000,
-  "#41b6c4",
-  4500,
-  "#2c7fb8",
-  6500,
-  "#253494",
+/** Colour ramps tuned to each metric’s typical Scotland range. */
+const METRICS: MetricDef[] = [
+  {
+    id: "agr_plot",
+    property: "annual_ground_rent_plot_gbp",
+    label: "AGR (plot)",
+    group: "value",
+    stops: [
+      [0, "#ffffcc"],
+      [500, "#c7e9b4"],
+      [1500, "#7fcdbb"],
+      [3000, "#41b6c4"],
+      [4500, "#2c7fb8"],
+      [6500, "#253494"],
+    ],
+  },
+  {
+    id: "rent_per_sqm",
+    property: "site_rental_per_sqm_gbp",
+    label: "Land rent £/m²",
+    group: "value",
+    stops: [
+      [0, "#f7fcf5"],
+      [5, "#c7e9c0"],
+      [12, "#74c476"],
+      [20, "#31a354"],
+      [30, "#006d2c"],
+    ],
+  },
+  {
+    id: "house_price",
+    property: "average_price_gbp",
+    label: "House prices",
+    group: "value",
+    stops: [
+      [100000, "#fff5f0"],
+      [140000, "#fcbba1"],
+      [180000, "#fc9272"],
+      [220000, "#ef3b2c"],
+      [280000, "#a50f15"],
+    ],
+  },
+  {
+    id: "agr_price_pct",
+    property: "agr_as_pct_of_price",
+    label: "AGR % of price",
+    group: "value",
+    stops: [
+      [0.5, "#f7fbff"],
+      [1.5, "#c6dbef"],
+      [2.5, "#6baed6"],
+      [3.5, "#2171b5"],
+      [5, "#08306b"],
+    ],
+  },
+  {
+    id: "land_share",
+    property: "site_share_pct",
+    label: "Land share %",
+    group: "value",
+    stops: [
+      [30, "#f7fcfd"],
+      [45, "#ccece6"],
+      [55, "#66c2a4"],
+      [65, "#238b45"],
+      [75, "#00441b"],
+    ],
+  },
+  {
+    id: "site_capital",
+    property: "site_capital_per_sqm_gbp",
+    label: "Site capital £/m²",
+    group: "value",
+    stops: [
+      [50, "#fcfbfd"],
+      [150, "#dadaeb"],
+      [300, "#9e9ac8"],
+      [450, "#6a51a3"],
+      [600, "#3f007d"],
+    ],
+  },
+  {
+    id: "simd",
+    property: "simd_pct_20most_deprived",
+    label: "Deprivation (SIMD)",
+    group: "context",
+    stops: [
+      [0, "#ffffd4"],
+      [8, "#fed98e"],
+      [16, "#fe9929"],
+      [28, "#d95f0e"],
+      [40, "#993404"],
+    ],
+  },
+  {
+    id: "pop_density",
+    property: "population_density_per_km2",
+    label: "Pop. density",
+    group: "context",
+    stops: [
+      [10, "#f7fcf0"],
+      [100, "#ccebc5"],
+      [500, "#7bccc4"],
+      [1500, "#2b8cbe"],
+      [3000, "#084081"],
+    ],
+  },
 ];
 
-const CELL_AGR_COLOR: maplibregl.ExpressionSpecification = [
+const CELL_AGR_COLOR: ExpressionSpecification = [
   "interpolate",
   ["linear"],
   ["coalesce", ["get", "annual_ground_rent_gbp"], 0],
@@ -75,7 +184,16 @@ const CELL_AGR_COLOR: maplibregl.ExpressionSpecification = [
   "#b30000",
 ];
 
-/** Postcode-ish vs W3W-ish query. */
+function paintForMetric(metric: MetricDef): ExpressionSpecification {
+  const stops = metric.stops.flatMap(([v, c]) => [v, c]);
+  return [
+    "interpolate",
+    ["linear"],
+    ["coalesce", ["get", metric.property], 0],
+    ...stops,
+  ] as ExpressionSpecification;
+}
+
 function looksLikePostcode(q: string): boolean {
   const t = q.trim().replace(/\s+/g, "").toUpperCase();
   return /^[A-Z]{1,2}\d[A-Z\d]?\d[A-Z]{2}$/i.test(t) || /^[A-Z]{1,2}\d/i.test(t);
@@ -87,15 +205,17 @@ export default function ScotlandMap() {
   const [mapReady, setMapReady] = useState(false);
   const [query, setQuery] = useState("");
   const [scenario, setScenario] = useState<ScenarioId>("full_agr");
-  const [showHeatmap, setShowHeatmap] = useState(true);
-  const [showCellGrid, setShowCellGrid] = useState(false);
+  const [choropleth, setChoropleth] = useState<MetricId | "off">("agr_plot");
   const [showBoundaries, setShowBoundaries] = useState(true);
+  const [showCellGrid, setShowCellGrid] = useState(false);
+  const [showMethod, setShowMethod] = useState(false);
   const [layerBusy, setLayerBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SquareResponse | null>(null);
   const [apiOk, setApiOk] = useState<boolean | null>(null);
   const [reportDownloading, setReportDownloading] = useState(false);
+  const [metricNote, setMetricNote] = useState<string | null>(null);
 
   const applyResult = useCallback((payload: SquareResponse) => {
     setResult(payload);
@@ -116,7 +236,6 @@ export default function ScotlandMap() {
       });
     }
 
-    // Highlight ROS cadastral parcel when the API returns geometry
     if (map?.getSource("selected-parcel")) {
       const parcelSrc = map.getSource("selected-parcel") as GeoJSONSource;
       if (payload.parcel?.geometry) {
@@ -131,7 +250,6 @@ export default function ScotlandMap() {
 
     if (map) {
       const z = map.getZoom();
-      // Zoom in enough to see property boundaries when we have a parcel
       const targetZoom = payload.parcel
         ? Math.max(z < 6.5 ? 15 : z, 15)
         : z < 6.5
@@ -184,7 +302,6 @@ export default function ScotlandMap() {
     setLoading(true);
     setError(null);
     try {
-      // Three words with dots → W3W; else treat as postcode
       const isWords = /^[a-z]+\.[a-z]+\.[a-z]+$/i.test(q.replace(/^\/+/, ""));
       if (isWords) {
         const encoded = encodeURIComponent(q.replace(/^\/+/, ""));
@@ -212,7 +329,6 @@ export default function ScotlandMap() {
     }
   };
 
-  // Health: only surface failures
   useEffect(() => {
     let cancelled = false;
     const tick = () => {
@@ -236,7 +352,6 @@ export default function ScotlandMap() {
       style: {
         version: 8,
         sources: {
-          // Carto basemap — reliable in browsers (OSM.org tiles often rate-limit → Failed to fetch)
           basemap: {
             type: "raster",
             tiles: [
@@ -245,8 +360,7 @@ export default function ScotlandMap() {
               "https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
             ],
             tileSize: 256,
-            attribution:
-              "© OpenStreetMap contributors © CARTO",
+            attribution: "© OpenStreetMap contributors © CARTO",
           },
         },
         layers: [{ id: "basemap", type: "raster", source: "basemap" }],
@@ -258,21 +372,35 @@ export default function ScotlandMap() {
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
     map.on("load", () => {
-      map.addSource("council-agr", { type: "geojson", data: emptyCollection });
+      map.addSource("council-metrics", { type: "geojson", data: emptyCollection });
       map.addLayer({
-        id: "council-agr-fill",
+        id: "council-fill",
         type: "fill",
-        source: "council-agr",
+        source: "council-metrics",
         paint: {
-          "fill-color": PLOT_AGR_COLOR,
+          "fill-color": paintForMetric(METRICS[0]),
           "fill-opacity": 0.72,
         },
       });
       map.addLayer({
-        id: "council-agr-line",
+        id: "council-line",
         type: "line",
-        source: "council-agr",
-        paint: { "line-color": "#0c2c84", "line-width": 1.1, "line-opacity": 0.65 },
+        source: "council-metrics",
+        paint: { "line-color": "#0c2c84", "line-width": 1.0, "line-opacity": 0.55 },
+      });
+      // Method outline: rural councils dashed emphasis
+      map.addLayer({
+        id: "council-method",
+        type: "line",
+        source: "council-metrics",
+        filter: ["==", ["get", "rural"], true],
+        layout: { visibility: "none" },
+        paint: {
+          "line-color": "#7a3e00",
+          "line-width": 2.2,
+          "line-dasharray": [2, 1.5],
+          "line-opacity": 0.9,
+        },
       });
 
       map.addSource("w3w-agr-grid", { type: "geojson", data: emptyCollection });
@@ -294,7 +422,6 @@ export default function ScotlandMap() {
         paint: { "line-color": "#7f0000", "line-width": 0.4, "line-opacity": 0.4 },
       });
 
-      // Property boundaries via Next route (soft-fails to blank tile, no console 500s)
       map.addSource("parcels-wms", {
         type: "raster",
         tiles: ["/api/parcels/tiles/{z}/{x}/{y}"],
@@ -368,7 +495,7 @@ export default function ScotlandMap() {
 
     map.on("click", (event) => {
       const hits = map.queryRenderedFeatures(event.point, {
-        layers: ["w3w-agr-fill", "council-agr-fill"],
+        layers: ["w3w-agr-fill", "council-fill"],
       });
       if (hits[0]?.properties?.lat != null && hits[0].layer?.id === "w3w-agr-fill") {
         void fetchSquare(Number(hits[0].properties.lat), Number(hits[0].properties.lng));
@@ -386,38 +513,39 @@ export default function ScotlandMap() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // National heat map
+  // Load multi-metric council data once per scenario
+  const metricsMetaRef = useRef<
+    Record<string, { label?: string; unit?: string; min?: number; max?: number }> | null
+  >(null);
+
   useEffect(() => {
     if (!mapReady) return;
     const map = mapRef.current;
     if (!map) return;
 
-    const setVis = (vis: "visible" | "none") => {
-      if (!map.getLayer("council-agr-fill")) return;
-      map.setLayoutProperty("council-agr-fill", "visibility", vis);
-      map.setLayoutProperty("council-agr-line", "visibility", vis);
-    };
-
-    if (!showHeatmap) {
-      setVis("none");
-      return;
-    }
-
     let cancelled = false;
     setLayerBusy(true);
-    void apiJson<GeoJSON.FeatureCollection>(
-      `/layers/councils-agr?scenario=${scenario}`,
-    )
+    void apiJson<
+      GeoJSON.FeatureCollection & {
+        meta?: {
+          metrics?: Record<
+            string,
+            { label?: string; unit?: string; min?: number; max?: number }
+          >;
+        };
+      }
+    >(`/layers/councils?scenario=${scenario}`)
       .then((data) => {
         if (cancelled) return;
-        const src = map.getSource("council-agr") as GeoJSONSource | undefined;
-        if (!src) throw new Error("Map heat source missing — refresh the page");
+        const src = map.getSource("council-metrics") as GeoJSONSource | undefined;
+        if (!src) throw new Error("Map source missing — refresh the page");
         src.setData(data);
-        setVis("visible");
+        metricsMetaRef.current = data.meta?.metrics ?? null;
         setApiOk(true);
+        // Trigger paint via choropleth effect
+        setMetricNote((prev) => prev ?? "Councils loaded");
       })
       .catch((err: Error) => {
-        // Layer failure is not a total outage — keep map usable
         setError(err.message);
       })
       .finally(() => {
@@ -427,9 +555,37 @@ export default function ScotlandMap() {
     return () => {
       cancelled = true;
     };
-  }, [mapReady, showHeatmap, scenario]);
+  }, [mapReady, scenario]);
 
-  // Viewport W3W cell grid
+  // Paint / visibility when metric selection changes
+  useEffect(() => {
+    if (!mapReady) return;
+    const map = mapRef.current;
+    if (!map?.getLayer("council-fill")) return;
+
+    if (choropleth === "off") {
+      map.setLayoutProperty("council-fill", "visibility", "none");
+      map.setLayoutProperty("council-line", "visibility", "none");
+      setMetricNote(null);
+      return;
+    }
+
+    map.setLayoutProperty("council-fill", "visibility", "visible");
+    map.setLayoutProperty("council-line", "visibility", "visible");
+    const def = METRICS.find((m) => m.id === choropleth) ?? METRICS[0];
+    map.setPaintProperty("council-fill", "fill-color", paintForMetric(def));
+
+    const meta = metricsMetaRef.current?.[choropleth];
+    if (meta?.min != null && meta?.max != null) {
+      setMetricNote(
+        `${meta.label ?? def.label}: ${formatRange(meta.min, meta.max, meta.unit ?? "")}`,
+      );
+    } else {
+      setMetricNote(def.label);
+    }
+  }, [mapReady, choropleth, layerBusy]);
+
+  // W3W cell grid
   useEffect(() => {
     if (!mapReady) return;
     const map = mapRef.current;
@@ -460,7 +616,6 @@ export default function ScotlandMap() {
       }
       inFlight = true;
       setLayerBusy(true);
-      // Keep cell count modest so the API is not overwhelmed alongside parcel tiles
       const path =
         `/layers/w3w-grid?south=${b.getSouth()}&west=${b.getWest()}` +
         `&north=${b.getNorth()}&east=${b.getEast()}&scenario=${scenario}&max_cells=200`;
@@ -471,7 +626,6 @@ export default function ScotlandMap() {
           setVis("visible");
         })
         .catch(() => {
-          // Soft-fail: cell grid is optional; do not mark API offline or spam console
           if (!cancelled) setVis("none");
         })
         .finally(() => {
@@ -494,7 +648,6 @@ export default function ScotlandMap() {
     };
   }, [mapReady, showCellGrid, scenario]);
 
-  // Property boundaries visibility
   useEffect(() => {
     if (!mapReady) return;
     const map = mapRef.current;
@@ -505,6 +658,17 @@ export default function ScotlandMap() {
       showBoundaries ? "visible" : "none",
     );
   }, [mapReady, showBoundaries]);
+
+  useEffect(() => {
+    if (!mapReady) return;
+    const map = mapRef.current;
+    if (!map?.getLayer("council-method")) return;
+    map.setLayoutProperty(
+      "council-method",
+      "visibility",
+      showMethod && choropleth !== "off" ? "visible" : "none",
+    );
+  }, [mapReady, showMethod, choropleth]);
 
   const downloadReport = async (format: "markdown" | "json") => {
     if (!result) return;
@@ -543,6 +707,9 @@ export default function ScotlandMap() {
       setReportDownloading(false);
     }
   };
+
+  const valueMetrics = METRICS.filter((m) => m.group === "value");
+  const contextMetrics = METRICS.filter((m) => m.group === "context");
 
   return (
     <div className="app-shell">
@@ -597,38 +764,77 @@ export default function ScotlandMap() {
                 {loading ? "…" : "Go"}
               </button>
             </div>
-            <div className="layer-chips">
-              <button
-                type="button"
-                className={showHeatmap ? "chip active" : "chip"}
-                onClick={() => setShowHeatmap((v) => !v)}
-                title="Council-level AGR heat map"
+
+            <div className="layer-panel">
+              <label className="layer-select-label" htmlFor="choropleth">
+                Colour map by
+              </label>
+              <select
+                id="choropleth"
+                className="layer-select"
+                value={choropleth}
+                onChange={(e) =>
+                  setChoropleth(e.target.value as MetricId | "off")
+                }
               >
-                Heat map{layerBusy && showHeatmap ? "…" : ""}
-              </button>
-              <button
-                type="button"
-                className={showBoundaries ? "chip active" : "chip"}
-                onClick={() => setShowBoundaries((v) => !v)}
-                title="ROS property boundaries (zoom in to 13+)"
-              >
-                Boundaries
-              </button>
-              <button
-                type="button"
-                className={showCellGrid ? "chip active" : "chip"}
-                onClick={() => setShowCellGrid((v) => !v)}
-                title="W3W cells when zoomed in (level 11+)"
-              >
-                Cell grid
-              </button>
+                <optgroup label="Value">
+                  {valueMetrics.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Context">
+                  {contextMetrics.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                    </option>
+                  ))}
+                </optgroup>
+                <option value="off">Off</option>
+              </select>
+              {metricNote && choropleth !== "off" && (
+                <p className="layer-meta">
+                  {layerBusy ? "Loading…" : metricNote}
+                </p>
+              )}
+
+              <div className="layer-chips">
+                <button
+                  type="button"
+                  className={showBoundaries ? "chip active" : "chip"}
+                  onClick={() => setShowBoundaries((v) => !v)}
+                  title="ROS cadastral parcel outlines (zoom 14+)"
+                >
+                  Boundaries
+                </button>
+                <button
+                  type="button"
+                  className={showCellGrid ? "chip active" : "chip"}
+                  onClick={() => setShowCellGrid((v) => !v)}
+                  title="W3W cells with AGR (zoom 12+)"
+                >
+                  Cell grid
+                </button>
+                <button
+                  type="button"
+                  className={showMethod ? "chip active" : "chip"}
+                  onClick={() => setShowMethod((v) => !v)}
+                  title="Outline rural productive-method councils"
+                >
+                  Rural method
+                </button>
+              </div>
             </div>
           </div>
 
           <div className="result-block">
             {error && <p className="error-line">{error}</p>}
             {!error && !result && (
-              <p className="idle-hint">Click the map to estimate Annual Ground Rent for a place.</p>
+              <p className="idle-hint">
+                Click the map to estimate Annual Ground Rent. Switch layers to
+                compare prices, land intensity, and deprivation.
+              </p>
             )}
             {result && (
               <AgrBreakdown
@@ -660,4 +866,18 @@ export default function ScotlandMap() {
       </div>
     </div>
   );
+}
+
+function formatRange(min: number, max: number, unit: string): string {
+  const fmt = (n: number) => {
+    if (unit.includes("%")) return `${n.toFixed(1)}%`;
+    if (unit.startsWith("£") && n >= 1000) {
+      return `£${Math.round(n).toLocaleString("en-GB")}`;
+    }
+    if (unit.startsWith("£")) return `£${n.toFixed(n >= 10 ? 0 : 2)}`;
+    if (n >= 100) return Math.round(n).toLocaleString("en-GB");
+    return n.toFixed(1);
+  };
+  const u = unit.includes("%") || unit.startsWith("£") ? "" : ` ${unit}`;
+  return `${fmt(min)}–${fmt(max)}${u}`;
 }

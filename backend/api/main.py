@@ -27,6 +27,7 @@ from spatial.w3w import (
     words_to_coordinates,
 )
 from layers.councils_layer import build_councils_agr_geojson
+from layers.council_metrics import build_council_metrics_geojson, layer_catalog
 from layers.grid_layer import build_w3w_agr_grid
 from spatial.parcels import TRANSPARENT_PNG, fetch_parcel_tile_png, lookup_parcel_geojson
 from validation.glasgow_ward_18 import run_validation
@@ -189,13 +190,31 @@ def get_glasgow_ward_18_boundary() -> JSONResponse:
     return _load_geojson(WARD_18_GEOJSON)
 
 
+@app.get("/layers/catalog")
+def get_layer_catalog() -> dict:
+    """List choropleth metrics and overlays for the map UI."""
+    return layer_catalog()
+
+
 @app.get("/layers/councils-agr")
 def layer_councils_agr(
     scenario: str = Query(default="full_agr"),
 ) -> JSONResponse:
-    """Choropleth: notional plot AGR by council (centroid residual)."""
+    """Choropleth: multi-metric council layer (default paint = plot AGR)."""
     try:
         geo = build_councils_agr_geojson(scenario)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return JSONResponse(geo)
+
+
+@app.get("/layers/councils")
+def layer_councils_metrics(
+    scenario: str = Query(default="full_agr"),
+) -> JSONResponse:
+    """Full multi-metric council FeatureCollection (AGR, HPI, SIMD, density, …)."""
+    try:
+        geo = build_council_metrics_geojson(scenario)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return JSONResponse(geo)

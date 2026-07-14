@@ -132,6 +132,44 @@ input {
   padding: 0.6rem 0.9rem;
 }
 
+.layer-panel {
+  margin-top: 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid #e4eaf1;
+}
+
+.layer-select-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--slrg-muted);
+  margin-bottom: 0.3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.layer-select {
+  width: 100%;
+  border: 1px solid #bcccdc;
+  border-radius: 8px;
+  padding: 0.45rem 0.55rem;
+  background: white;
+  color: var(--slrg-text);
+  font-size: 0.88rem;
+}
+
+.layer-select:focus {
+  outline: 2px solid rgba(0, 26, 58, 0.25);
+  border-color: var(--slrg-navy);
+}
+
+.layer-meta {
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+  color: var(--slrg-muted);
+  line-height: 1.35;
+}
+
 .layer-chips {
   display: flex;
   gap: 0.4rem;

@@ -73,3 +73,28 @@ what3words:
 rebuild_costs:
   role: drc_for_residual
   config_path: data/config/agr.yaml  # valuer_roll.rebuild
+
+map_layers:
+  council_metrics:
+    role: choropleth_value_and_context
+    endpoint: /layers/councils
+    metrics:
+      - agr_plot
+      - rent_per_sqm
+      - house_price
+      - agr_price_pct
+      - land_share
+      - site_capital
+      - simd
+      - pop_density
+  context_stats:
+    path: data/processed/context_by_council.json
+    simd: SIMD 2020v2 local authority shares (SG open)
+    population: NRS mid-year council estimates (open, rounded)
+  overlays:
+    - id: boundaries
+      source: ROS INSPIRE WMS
+    - id: cell_grid
+      source: viewport W3W residual grid
+    - id: method
+      source: valuation method flag on council metrics
