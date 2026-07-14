@@ -7,7 +7,7 @@ import httpx
 import yaml
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from api.cors import cors_settings
 from fastapi.responses import PlainTextResponse
@@ -28,6 +28,7 @@ from spatial.w3w import (
 )
 from layers.councils_layer import build_councils_agr_geojson
 from layers.grid_layer import build_w3w_agr_grid
+from spatial.parcels import fetch_parcel_tile_png, lookup_parcel_geojson
 from validation.glasgow_ward_18 import run_validation
 from validation.ratio_study import ratio_study_points
 
@@ -133,6 +134,12 @@ def _square_response(
             "Only production_eligible rows may be treated as real market evidence."
         )
         payload["sales_context"] = ctx
+
+    # Property boundary for the cadastral parcel under this cell (ROS INSPIRE)
+    parcel_feature = lookup_parcel_geojson(square.lat, square.lng)
+    if parcel_feature is not None:
+        payload["parcel"] = parcel_feature
+
     return payload
 
 
@@ -211,6 +218,55 @@ def layer_w3w_grid(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return JSONResponse(geo)
+
+
+@app.get("/layers/parcels/tiles/{z}/{x}/{y}.png")
+def layer_parcel_tiles(z: int, x: int, y: int) -> Response:
+    """
+    ROS INSPIRE cadastral parcel boundaries as XYZ PNG tiles (proxied WMS).
+    Use from ~zoom 14+; transparent outside Scotland / on errors.
+    """
+    if z < 0 or z > 22:
+        raise HTTPException(status_code=400, detail="Invalid tile zoom")
+    png = fetch_parcel_tile_png(z, x, y)
+    return Response(
+        content=png,
+        media_type="image/png",
+        headers={
+            "Cache-Control": "public, max-age=3600",
+            "X-Layer-Source": "ROS-INSPIRE-CP.CadastralParcel",
+        },
+    )
+
+
+@app.get("/layers/parcels/at")
+def layer_parcel_at(
+    lat: float = Query(..., ge=-90, le=90),
+    lng: float = Query(..., ge=-180, le=180),
+) -> JSONResponse:
+    """Cadastral parcel polygon under a point (GeoJSON FeatureCollection)."""
+    _scotland_bounds_check(lat, lng)
+    feature = lookup_parcel_geojson(lat, lng)
+    if feature is None:
+        return JSONResponse(
+            {
+                "type": "FeatureCollection",
+                "features": [],
+                "meta": {"source": "ROS INSPIRE", "found": False},
+            }
+        )
+    return JSONResponse(
+        {
+            "type": "FeatureCollection",
+            "features": [feature],
+            "meta": {
+                "source": "ROS INSPIRE CP.CadastralParcel",
+                "found": True,
+                "label": feature["properties"].get("label"),
+                "area_sqm": feature["properties"].get("area_sqm"),
+            },
+        }
+    )
 
 
 @app.get("/validation/glasgow-ward-18")

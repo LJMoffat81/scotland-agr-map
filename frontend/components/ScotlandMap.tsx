@@ -4,7 +4,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import maplibregl, { Map, GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import AgrBreakdown, { AgrResult, ScenarioId } from "./AgrBreakdown";
-import { apiFetch, apiJson, pingApi } from "../lib/api";
+import { apiFetch, apiJson, getApiBaseUrl, pingApi } from "../lib/api";
+
+type ParcelFeature = GeoJSON.Feature<
+  GeoJSON.Polygon | GeoJSON.MultiPolygon,
+  {
+    label?: string;
+    area_sqm?: number;
+    inspire_id?: string;
+    national_reference?: string;
+  }
+>;
 
 type SquareResponse = {
   square: {
@@ -18,6 +28,7 @@ type SquareResponse = {
   what3words?: string | null;
   w3w_configured?: boolean;
   sales_context?: import("./AgrBreakdown").SalesContext | null;
+  parcel?: ParcelFeature | null;
   postcode?: {
     postcode: string;
     admin_district: string | null;
@@ -78,6 +89,7 @@ export default function ScotlandMap() {
   const [scenario, setScenario] = useState<ScenarioId>("full_agr");
   const [showHeatmap, setShowHeatmap] = useState(true);
   const [showCellGrid, setShowCellGrid] = useState(false);
+  const [showBoundaries, setShowBoundaries] = useState(true);
   const [layerBusy, setLayerBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,10 +114,32 @@ export default function ScotlandMap() {
           },
         ],
       });
+    }
+
+    // Highlight ROS cadastral parcel when the API returns geometry
+    if (map?.getSource("selected-parcel")) {
+      const parcelSrc = map.getSource("selected-parcel") as GeoJSONSource;
+      if (payload.parcel?.geometry) {
+        parcelSrc.setData({
+          type: "FeatureCollection",
+          features: [payload.parcel],
+        });
+      } else {
+        parcelSrc.setData(emptyCollection);
+      }
+    }
+
+    if (map) {
       const z = map.getZoom();
+      // Zoom in enough to see property boundaries when we have a parcel
+      const targetZoom = payload.parcel
+        ? Math.max(z < 6.5 ? 15 : z, 15)
+        : z < 6.5
+          ? 7
+          : Math.min(z, 12);
       map.flyTo({
         center: [payload.square.lng, payload.square.lat],
-        zoom: z < 6.5 ? 7 : Math.min(z, 12),
+        zoom: Math.min(targetZoom, 18),
         essential: true,
       });
     }
@@ -252,6 +286,39 @@ export default function ScotlandMap() {
         source: "w3w-agr-grid",
         layout: { visibility: "none" },
         paint: { "line-color": "#7f0000", "line-width": 0.4, "line-opacity": 0.4 },
+      });
+
+      // ROS INSPIRE property boundaries (WMS via API tile proxy)
+      const apiBase = getApiBaseUrl().replace(/\/$/, "");
+      map.addSource("parcels-wms", {
+        type: "raster",
+        tiles: [`${apiBase}/layers/parcels/tiles/{z}/{x}/{y}.png`],
+        tileSize: 256,
+        minzoom: 13,
+        maxzoom: 19,
+        attribution: "© Registers of Scotland (INSPIRE cadastral parcels)",
+      });
+      map.addLayer({
+        id: "parcels-wms",
+        type: "raster",
+        source: "parcels-wms",
+        minzoom: 13,
+        paint: { "raster-opacity": 0.9 },
+        layout: { visibility: "visible" },
+      });
+
+      map.addSource("selected-parcel", { type: "geojson", data: emptyCollection });
+      map.addLayer({
+        id: "selected-parcel-fill",
+        type: "fill",
+        source: "selected-parcel",
+        paint: { "fill-color": "#001a3a", "fill-opacity": 0.12 },
+      });
+      map.addLayer({
+        id: "selected-parcel-outline",
+        type: "line",
+        source: "selected-parcel",
+        paint: { "line-color": "#001a3a", "line-width": 2.25, "line-opacity": 0.95 },
       });
 
       map.addSource("selected-square", { type: "geojson", data: emptyCollection });
@@ -417,6 +484,18 @@ export default function ScotlandMap() {
     };
   }, [mapReady, showCellGrid, scenario]);
 
+  // Property boundaries visibility
+  useEffect(() => {
+    if (!mapReady) return;
+    const map = mapRef.current;
+    if (!map?.getLayer("parcels-wms")) return;
+    map.setLayoutProperty(
+      "parcels-wms",
+      "visibility",
+      showBoundaries ? "visible" : "none",
+    );
+  }, [mapReady, showBoundaries]);
+
   const downloadReport = async (format: "markdown" | "json") => {
     if (!result) return;
     setReportDownloading(true);
@@ -519,6 +598,14 @@ export default function ScotlandMap() {
               </button>
               <button
                 type="button"
+                className={showBoundaries ? "chip active" : "chip"}
+                onClick={() => setShowBoundaries((v) => !v)}
+                title="ROS property boundaries (zoom in to 13+)"
+              >
+                Boundaries
+              </button>
+              <button
+                type="button"
                 className={showCellGrid ? "chip active" : "chip"}
                 onClick={() => setShowCellGrid((v) => !v)}
                 title="W3W cells when zoomed in (level 11+)"
@@ -543,6 +630,10 @@ export default function ScotlandMap() {
                 lat={result.square.lat}
                 lng={result.square.lng}
                 what3words={result.what3words}
+                parcelLabel={result.parcel?.properties?.label ?? result.agr.parcel_id}
+                parcelAreaSqm={
+                  result.parcel?.properties?.area_sqm ?? result.agr.parcel_area_sqm
+                }
                 onDownloadReport={(fmt) => void downloadReport(fmt)}
                 reportDownloading={reportDownloading}
               />

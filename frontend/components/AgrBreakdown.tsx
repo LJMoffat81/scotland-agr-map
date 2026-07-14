@@ -89,6 +89,8 @@ type Props = {
   lat: number;
   lng: number;
   what3words?: string | null;
+  parcelLabel?: string | null;
+  parcelAreaSqm?: number | null;
   onDownloadReport?: (format: "markdown" | "json") => void;
   reportDownloading?: boolean;
 };
@@ -121,6 +123,8 @@ export default function AgrBreakdown({
   lat,
   lng,
   what3words,
+  parcelLabel,
+  parcelAreaSqm,
   onDownloadReport,
   reportDownloading,
 }: Props) {
@@ -128,9 +132,21 @@ export default function AgrBreakdown({
   const plotFull = agr.roll_annual_rent_notional_plot_gbp;
   const cellFull = agr.economic_annual_rent_gbp;
   const scale = cellFull > 0 ? active.annual_charge_gbp / cellFull : 1;
+  // Prefer true cadastral parcel rent when we have the boundary area
+  const parcelFull =
+    parcelAreaSqm != null && parcelAreaSqm > 0
+      ? agr.site_rental_per_sqm_gbp * parcelAreaSqm * scale
+      : agr.roll_annual_rent_parcel_gbp != null
+        ? agr.roll_annual_rent_parcel_gbp * scale
+        : null;
   const headline =
-    plotFull != null && plotFull > 0 ? plotFull * scale : active.annual_charge_gbp;
-  const headlineIsPlot = plotFull != null && plotFull > 0;
+    parcelFull != null && parcelFull > 0
+      ? parcelFull
+      : plotFull != null && plotFull > 0
+        ? plotFull * scale
+        : active.annual_charge_gbp;
+  const headlineIsParcel = parcelFull != null && parcelFull > 0;
+  const headlineIsPlot = !headlineIsParcel && plotFull != null && plotFull > 0;
 
   const place = [postcode, agr.council_name].filter(Boolean).join(" · ");
   const w3wDisplay = what3words
@@ -151,9 +167,15 @@ export default function AgrBreakdown({
       </div>
 
       <p className="headline-caption">
-        {headlineIsPlot
-          ? `Typical plot (~${agr.notional_plot_sqm?.toLocaleString("en-GB")} m²)`
-          : `This ${areaSqm} m² cell · ${formatGbp(active.annual_charge_gbp)}/yr`}
+        {headlineIsParcel
+          ? `Property parcel${parcelLabel ? ` ${parcelLabel}` : ""}${
+              parcelAreaSqm
+                ? ` · ${Math.round(parcelAreaSqm).toLocaleString("en-GB")} m²`
+                : ""
+            }`
+          : headlineIsPlot
+            ? `Typical plot (~${agr.notional_plot_sqm?.toLocaleString("en-GB")} m²)`
+            : `This ${areaSqm} m² cell · ${formatGbp(active.annual_charge_gbp)}/yr`}
       </p>
 
       <div className="scenario-pills" role="tablist" aria-label="Scenario">
