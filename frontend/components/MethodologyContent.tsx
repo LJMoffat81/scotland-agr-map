@@ -17,6 +17,7 @@ type LineageEntry = {
   name: string;
   role: string;
   summary: string;
+  url?: string;
 };
 
 type AgrConfig = {
@@ -167,7 +168,16 @@ export default function MethodologyContent() {
           <ol className="lineage-list">
             {config.lineage.core.map((entry) => (
               <li key={entry.id}>
-                <strong>{entry.name}</strong> — {entry.summary}
+                <strong>
+                  {entry.url ? (
+                    <a href={entry.url} target="_blank" rel="noreferrer">
+                      {entry.name}
+                    </a>
+                  ) : (
+                    entry.name
+                  )}
+                </strong>{" "}
+                — {entry.summary}
               </li>
             ))}
           </ol>
@@ -180,12 +190,28 @@ export default function MethodologyContent() {
             <ul>
               {config.lineage.satellite.map((entry) => (
                 <li key={entry.id}>
-                  <strong>{entry.name}</strong> — {entry.summary}
+                  <strong>
+                    {entry.url ? (
+                      <a href={entry.url} target="_blank" rel="noreferrer">
+                        {entry.name}
+                      </a>
+                    ) : (
+                      entry.name
+                    )}
+                  </strong>{" "}
+                  — {entry.summary}
                 </li>
               ))}
             </ul>
           </>
         )}
+        <p className="meta">
+          Next valuation step: sales-based mass appraisal (
+          <a href="https://www.openavmkit.com/" target="_blank" rel="noreferrer">
+            OpenAVMKit
+          </a>
+          ) — see <code>docs/valuation-roadmap.md</code>.
+        </p>
       </section>
 
       <section>
@@ -269,10 +295,12 @@ annual_rent = site_capital_economic × yield`}
       </section>
 
       <section>
-        <h2>Equal-share illustration (Ogilvie / Paine)</h2>
+        <h2>Equal-share illustration (Ogilvie / Paine / Unitism)</h2>
         <p>
-          Each square&apos;s economic rent is also shown as a fraction of one Scot&apos;s
-          equal annual claim on the national rent pool (framing only).
+          Each cell&apos;s economic rent is shown as a fraction of one Scot&apos;s equal
+          annual claim on the national rent pool (framing only). That claim could fund
+          public services or a citizen dividend (Unitism / Paine), without changing the
+          residual maths.
         </p>
         <pre className="formula">
           {`equal_share_per_person = rent_pool ÷ population

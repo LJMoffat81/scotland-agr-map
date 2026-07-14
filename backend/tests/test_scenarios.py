@@ -89,14 +89,19 @@ def test_lineage_config_has_core_and_satellite():
         "harrison",
         "stiglitz",
         "macfarlane",
+        "adams",
         "sandilands",
         "wightman",
         "pickard",
     }.issubset(core_ids)
+    sat_ids = {entry["id"] for entry in config["lineage"]["satellite"]}
+    assert "doucet" in sat_ids
+    assert "openavmkit" in sat_ids
     assert config["macro"]["atcor"] is True
     assert config["macro"]["ebcor"] is True
     assert config["integrity"]["estimate_kind"] == "valuer_residual_roll"
     assert config["valuer_roll"]["method"] == "residual_drc"
+    assert config["equal_share"].get("unitism_dividend_framing") is True
     assert len(config["integrity"]["caveats"]) >= 4
 
 

@@ -20,9 +20,10 @@ Calculation **maths** still run on the operational trio **Wightman → Pickard �
 | 6 | **Fred Harrison** | Land **boom–bust** cycles; market prices capitalise speculation above economic rent. |
 | 7 | **Joseph Stiglitz** | **Henry George theorem**: public goods and amenity capitalise into land values. |
 | 8 | **Laurie Macfarlane** | Modern **housing = land market**; hope value, financialisation, Scotland/UK policy context. |
-| 9 | **Roger Sandilands** | Scotland **macro**: true rent ~50% of GDP; income-tax replacement and growth arguments. |
-| 10 | **Andy Wightman** | **Residual / HABU** site capital for Scottish locations. |
-| 11 | **Duncan Pickard** | **De-speculation**: charge productive/economic rent, not bubble market price. |
+| 9 | **Martin Adams (Unitism)** | **Community land contribution**: collect land rental value; untax work/buildings; fund services or a **citizen dividend**. |
+| 10 | **Roger Sandilands** | Scotland **macro**: true rent ~50% of GDP; income-tax replacement and growth arguments. |
+| 11 | **Andy Wightman** | **Residual / HABU** site capital for Scottish locations. |
+| 12 | **Duncan Pickard** | **De-speculation**: charge productive/economic rent, not bubble market price. |
 
 ### Satellite references (also see)
 
@@ -30,11 +31,19 @@ Calculation **maths** still run on the operational trio **Wightman → Pickard �
 |----------------|------|
 | **John Stuart Mill** | Unearned increment — social claim on rises in land value from general progress. |
 | **Thomas Paine** | *Agrarian Justice* — land rent as basis for an equal citizen dividend. |
+| **Lars Doucet / Center for Land Economics** | Modern LVT evidence (*Land is a Big Deal*); city incidence studies; assessment equity. |
+| **OpenAVMKit** (CLE) | FOSS mass appraisal / land modeling — planned path to a finer Scotland roll. |
 | **John McEwen** | *Who Owns Scotland* — ownership concentration and who captures rent. |
 | **Churchill (1909 land campaign)** | Historic UK political case against land monopoly. |
 | **Scottish Land Commission** | Hope value, public interest, contemporary LVT policy options. |
 
-**Attribution note:** ATCOR/EBCOR are formalised by **Gaffney**. **Sandilands** applies the rent-shift and Scotland GDP case. Market price correction is **Harrison** (cycle/speculation story) + **Pickard** (operational discount).
+**Attribution note:** ATCOR/EBCOR are formalised by **Gaffney**. **Sandilands** applies the rent-shift and Scotland GDP case. Market price correction is **Harrison** (cycle/speculation story) + **Pickard** (operational discount). **Adams** supplies citizen-dividend / Unitism framing; **Doucet/CLE** supply modern mass-appraisal tooling direction (see [valuation roadmap](valuation-roadmap.md)).
+
+### External links
+
+- [Unitism (Martin Adams)](https://unitism.com/)
+- [Center for Land Economics](https://landeconomics.org/home)
+- [OpenAVMKit](https://www.openavmkit.com/)
 
 ## Valuer-style AGR roll (primary calculation)
 
@@ -103,7 +112,7 @@ Marginal land: near-zero rent after wages and capital (Ricardo).
 
 Caveats also live in `data/config/agr.yaml` under `integrity.caveats` and are returned on every AGR API response.
 
-## Equal-share illustration (Ogilvie / Paine)
+## Equal-share illustration (Ogilvie / Paine / Unitism)
 
 For pedagogy only (does not change the charge formula):
 
@@ -112,7 +121,7 @@ equal_share_rent_per_person = estimated_scotland_annual_rent ÷ scotland_populat
 square_as_fraction_of_equal_claim = map_economic_rent_of_square ÷ equal_share_rent_per_person
 ```
 
-This frames each square relative to one Scot’s equal annual claim on the **national** rent pool (Ogilvie’s right; Paine’s dividend idea). Population and rent pool live in `data/config/agr.yaml`.
+This frames each cell relative to one Scot’s equal annual claim on the **national** rent pool (Ogilvie’s right; Paine’s *Agrarian Justice*; Adams / Unitism citizen dividend or community fund). Population and rent pool live in `data/config/agr.yaml`.
 
 ## Per-square formula (W3W 3×3 m)
 
@@ -166,6 +175,8 @@ Lineage gloss: full AGR (Smith–George); income tax (Sandilands + Gaffney ATCOR
 - [Wightman — A Land Value Tax for Scotland](https://andywightman.scot/docs/LVTREPORT.pdf)
 - Josh Ryan-Collins, Toby Lloyd & Laurie Macfarlane — *Rethinking the Economics of Land and Housing* (2017)
 - Laurie Macfarlane — [Scottish Land Commission housing land market paper](https://www.landcommission.gov.scot/downloads/5de1a716b632b_Land-Lines-Discussion-Paper-Housing-Land-Market-Dec-2017.pdf)
+- Martin Adams — *Land: A New Paradigm for a Thriving World* · [Unitism](https://unitism.com/)
+- Lars Doucet — *Land is a Big Deal* · [Center for Land Economics](https://landeconomics.org/home) · [OpenAVMKit](https://www.openavmkit.com/)
 - [Scottish Land Commission — LVT policy options](https://www.landcommission.gov.scot/downloads/5dd6984da0491_Land-Value-Tax-Policy-Options-for-Scotland-Final-Report-23-7-18.pdf)
 - John McEwen — *Who Owns Scotland*
 

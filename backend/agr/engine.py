@@ -126,8 +126,16 @@ def calculate_square_agr(square: GridSquare, scenario: str | None = None) -> Agr
     ]
     if eq_enabled and eq_per_person is not None and eq_fraction is not None:
         notes.append(
-            f"Ogilvie/Paine equal-share (national pool): one Scot ≈ £{eq_per_person:,.0f}/year; "
-            f"this square’s roll economic rent is {eq_fraction * 100:.4f}% of that claim."
+            f"Ogilvie/Paine/Unitism equal-share (national pool): one Scot ≈ £{eq_per_person:,.0f}/year; "
+            f"this cell’s roll economic rent is {eq_fraction * 100:.4f}% of that claim "
+            f"(could fund services or a citizen dividend)."
+        )
+        notes.append(
+            "Martin Adams (Unitism): community collects land rental value; wages and buildings untaxed."
+        )
+        notes.append(
+            "Lars Doucet / CLE: next roll upgrade path is sales-based mass appraisal (OpenAVMKit), "
+            "not a change to SLRG residual policy."
         )
     if ward is not None:
         notes.append(

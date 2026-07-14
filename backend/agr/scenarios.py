@@ -59,8 +59,8 @@ def compute_scenarios(
             annual_charge_gbp=round(full_charge, 2),
             description=(
                 "Full annual economic ground rent for this grid cell from the valuer "
-                "residual roll (MV − DRC → Pickard → yield; Wightman/SLRG). "
-                "Not calibrated so all cells sum to the national rent pool."
+                "residual roll (MV − DRC → Pickard → yield). SLRG full AGR / Unitism "
+                "community land contribution framing. Not calibrated to sum to the national pool."
             ),
             effective_rate=full_cfg["capture_rate"],
         ),

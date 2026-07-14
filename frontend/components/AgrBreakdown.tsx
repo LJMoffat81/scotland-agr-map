@@ -252,7 +252,7 @@ export default function AgrBreakdown({
             agr.equal_share_rent_per_person_gbp != null &&
             agr.square_as_fraction_of_equal_claim != null && (
               <tr>
-                <th>Equal share (Ogilvie / Paine)</th>
+                <th>Equal share (Ogilvie / Paine / Unitism)</th>
                 <td>
                   One Scot ≈ {formatGbp(agr.equal_share_rent_per_person_gbp)}/year from
                   national pool
@@ -261,6 +261,7 @@ export default function AgrBreakdown({
                     : ""}
                   ; this cell is{" "}
                   {(agr.square_as_fraction_of_equal_claim * 100).toFixed(4)}% of that claim
+                  (services or citizen dividend framing)
                 </td>
               </tr>
             )}

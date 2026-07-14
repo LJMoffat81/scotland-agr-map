@@ -40,6 +40,11 @@ lineage:
       name: "Laurie Macfarlane"
       role: "modern_housing_land_market"
       summary: "Housing crisis is largely a land market; hope value and financialisation (Scotland/UK)."
+    - id: adams
+      name: "Martin Adams (Unitism)"
+      role: "community_land_contribution"
+      summary: "Community collects land rental value; wages/buildings untaxed; revenue funds services or a citizen dividend (Unitism)."
+      url: "https://unitism.com/"
     - id: sandilands
       name: "Roger Sandilands"
       role: "scotland_macro"
@@ -61,6 +66,16 @@ lineage:
       name: "Thomas Paine"
       role: "agrarian_dividend"
       summary: "Agrarian Justice — land rent as the basis for an equal citizen dividend."
+    - id: doucet
+      name: "Lars Doucet / Center for Land Economics"
+      role: "modern_lvt_mass_appraisal"
+      summary: "Land is a Big Deal; open mass appraisal (OpenAVMKit) and city LVT incidence research — path to a finer AGR roll."
+      url: "https://landeconomics.org/home"
+    - id: openavmkit
+      name: "OpenAVMKit"
+      role: "foss_mass_appraisal"
+      summary: "FOSS automated valuation / land modeling toolkit (CLE) for sales-based residual and ratio studies."
+      url: "https://www.openavmkit.com/"
     - id: mcewen
       name: "John McEwen"
       role: "ownership_transparency"
@@ -74,11 +89,12 @@ lineage:
       role: "modern_reform_options"
       summary: "Hope value, public interest, and LVT policy options for contemporary Scotland."
 
-# Ogilvie / Paine equal-share illustration (framing only; same economic rent).
+# Ogilvie / Paine / Unitism equal-share illustration (framing only; same economic rent).
 equal_share:
   enabled: true
   scotland_population: 5480000
-  notes: "Equal annual claim ≈ Scotland rent pool ÷ population (Ogilvie right; Paine dividend framing)."
+  notes: "Equal annual claim ≈ Scotland rent pool ÷ population (Ogilvie right; Paine / Unitism citizen-dividend framing)."
+  unitism_dividend_framing: true
 
 macro:
   rent_share_of_gdp: 0.50
@@ -166,7 +182,7 @@ land_use_values_gbp_per_ha_2009:
 scenarios:
   full_agr:
     capture_rate: 1.0
-    label: "Full AGR (Smith–George / Sandilands)"
+    label: "Full AGR / community land contribution"
   replace_income_tax:
     target_gbp: 11500000000
     label: "Replace Scotland Income Tax (Sandilands)"

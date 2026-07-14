@@ -17,11 +17,12 @@ HABU existing use → **MV − DRC** (Wightman residual) → Pickard economic si
 | Cycles | **Fred Harrison** | Boom–bust; speculative land prices |
 | Modern theory | **Joseph Stiglitz** | Public goods capitalise into land |
 | Housing/land | **Laurie Macfarlane** | Housing crisis = land market |
+| Community contribution | **Martin Adams (Unitism)** | Land rent shared; optional citizen dividend |
 | Scotland macro | **Roger Sandilands** | Rent pool; income-tax shift |
 | Valuation | **Andy Wightman** | Residual / HABU site capital |
 | Charge base | **Duncan Pickard** | Economic rent after speculation |
 
-Also see: Mill, Paine, McEwen, Churchill 1909, Scottish Land Commission — details in [docs/methodology.md](docs/methodology.md).
+Also see: Mill, Paine, **Lars Doucet / CLE** (OpenAVMKit mass appraisal path), McEwen, Churchill 1909, Scottish Land Commission — [docs/methodology.md](docs/methodology.md) · [docs/valuation-roadmap.md](docs/valuation-roadmap.md).
 
 **Integrity:** map residual £ figures are a research estimate (not a rates bill). The Sandilands national rent pool is a separate macro concept used for equal-share and income-tax scaling — map squares are not calibrated to sum to that pool. See methodology “Two rent concepts”.
 
