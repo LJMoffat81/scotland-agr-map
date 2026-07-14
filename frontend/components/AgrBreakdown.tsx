@@ -33,6 +33,15 @@ export type AgrResult = {
   parcel_area_sqm: number | null;
   ward_name: string | null;
   scenarios: Record<ScenarioId, ScenarioCharge>;
+  equal_share_enabled?: boolean;
+  equal_share_rent_per_person_gbp?: number | null;
+  square_as_fraction_of_equal_claim?: number | null;
+  scotland_population?: number | null;
+  estimate_kind?: string;
+  estimate_label?: string;
+  site_share_source?: string;
+  national_rent_pool_gbp?: number;
+  integrity_caveats?: string[];
 };
 
 type Props = {
@@ -58,6 +67,16 @@ function formatGbp(value: number) {
   })}`;
 }
 
+function formatGbpBn(value: number) {
+  return `£${(value / 1_000_000_000).toFixed(0)}bn`;
+}
+
+function siteShareSourceLabel(source?: string) {
+  if (source === "wightman_49pct") return "Wightman research (49%)";
+  if (source === "slrg_60pct") return "SLRG display default (60%)";
+  return source ?? "config";
+}
+
 export default function AgrBreakdown({
   agr,
   areaSqm,
@@ -71,6 +90,12 @@ export default function AgrBreakdown({
 
   return (
     <>
+      <p className="integrity-banner" role="note">
+        {agr.estimate_label ?? "Map residual AGR (research)"} — not an official tax
+        bill. Square figures use residual maths; the national rent pool is a separate
+        Sandilands macro concept.
+      </p>
+
       <div className="scenario-tabs" role="tablist" aria-label="AGR policy scenario">
         {SCENARIO_ORDER.map((id) => (
           <button
@@ -94,6 +119,9 @@ export default function AgrBreakdown({
         {formatGbp(active.annual_charge_gbp)}
         <span className="agr-unit">/year</span>
       </div>
+      <p className="meta" style={{ marginTop: "0.25rem" }}>
+        Scenario charge for this {areaSqm} sqm square
+      </p>
 
       <table className="breakdown-table">
         <tbody>
@@ -130,49 +158,96 @@ export default function AgrBreakdown({
           {agr.average_price_gbp && (
             <tr>
               <th>HPI avg price</th>
-              <td>{formatGbp(agr.average_price_gbp)}</td>
+              <td>
+                {formatGbp(agr.average_price_gbp)} (council residential average)
+              </td>
             </tr>
           )}
           <tr>
-            <th>Site capital</th>
-            <td>{formatGbp(agr.site_capital_per_sqm_gbp)}/sqm</td>
+            <th>Site capital (map)</th>
+            <td>{formatGbp(agr.site_capital_per_sqm_gbp)}/sqm residual proxy</td>
           </tr>
           <tr>
             <th>De-speculated site</th>
             <td>
               {formatGbp(agr.despeculated_site_capital_per_sqm_gbp)}/sqm (
-              {formatGbp(agr.despeculated_site_value_gbp)} total)
+              {formatGbp(agr.despeculated_site_value_gbp)} on {areaSqm} sqm) — Pickard
             </td>
           </tr>
           <tr>
             <th>Site share</th>
-            <td>{(agr.site_share_used * 100).toFixed(0)}%</td>
+            <td>
+              {(agr.site_share_used * 100).toFixed(0)}% ·{" "}
+              {siteShareSourceLabel(agr.site_share_source)}
+            </td>
           </tr>
           <tr>
             <th>Yield rate</th>
-            <td>{(agr.yield_rate * 100).toFixed(1)}%</td>
+            <td>
+              {(agr.yield_rate * 100).toFixed(1)}% (capital → annual rent)
+            </td>
           </tr>
           <tr>
-            <th>Economic rent</th>
-            <td>{formatGbp(agr.economic_annual_rent_gbp)}/year (full AGR)</td>
+            <th>Map economic rent</th>
+            <td>
+              {formatGbp(agr.economic_annual_rent_gbp)}/year (full AGR on residual)
+            </td>
           </tr>
+          {agr.national_rent_pool_gbp != null && (
+            <tr>
+              <th>National rent pool</th>
+              <td>
+                {formatGbpBn(agr.national_rent_pool_gbp)}/year (Sandilands macro —
+                not the sum of map squares)
+              </td>
+            </tr>
+          )}
+          {agr.equal_share_enabled &&
+            agr.equal_share_rent_per_person_gbp != null &&
+            agr.square_as_fraction_of_equal_claim != null && (
+              <tr>
+                <th>Equal share (Ogilvie / Paine)</th>
+                <td>
+                  One Scot ≈ {formatGbp(agr.equal_share_rent_per_person_gbp)}
+                  /year from the <em>national pool</em>
+                  {agr.scotland_population
+                    ? ` (${agr.scotland_population.toLocaleString("en-GB")} people)`
+                    : ""}
+                  ; this square&apos;s <em>map</em> economic rent is{" "}
+                  {(agr.square_as_fraction_of_equal_claim * 100).toFixed(4)}% of that
+                  claim
+                </td>
+              </tr>
+            )}
           <tr>
             <th>Method</th>
             <td>
               {agr.method} · {agr.confidence} confidence
+              {agr.estimate_kind ? ` · ${agr.estimate_kind}` : ""}
             </td>
           </tr>
         </tbody>
       </table>
 
       <details className="notes-details">
-        <summary>Calculation notes</summary>
+        <summary>Calculation notes &amp; lineage</summary>
         <ul>
           {agr.notes.map((note) => (
             <li key={note}>{note}</li>
           ))}
         </ul>
       </details>
+
+      {agr.integrity_caveats && agr.integrity_caveats.length > 0 && (
+        <details className="notes-details">
+          <summary>Integrity caveats</summary>
+          <ul>
+            {agr.integrity_caveats.map((caveat) => (
+              <li key={caveat}>{caveat}</li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       <p className="meta">{agr.disclaimer}</p>
     </>

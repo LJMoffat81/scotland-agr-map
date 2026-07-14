@@ -46,3 +46,69 @@ def test_compute_scenarios_returns_three_policies():
         capture_rate=1.0,
     )
     assert set(charges) == {"full_agr", "replace_income_tax", "revenue_neutral"}
+
+
+def test_equal_share_fields_present_and_coherent():
+    from agr.config import load_config
+
+    load_config.cache_clear()
+    square = snap_to_w3w_grid(55.9533, -3.1883)
+    breakdown = calculate_square_agr(square)
+    config = load_config()
+
+    assert breakdown.equal_share_enabled is True
+    assert breakdown.equal_share_rent_per_person_gbp is not None
+    assert breakdown.square_as_fraction_of_equal_claim is not None
+    assert breakdown.scotland_population == config["equal_share"]["scotland_population"]
+
+    expected_per_person = (
+        config["macro"]["estimated_scotland_annual_rent_gbp"]
+        / config["equal_share"]["scotland_population"]
+    )
+    assert abs(breakdown.equal_share_rent_per_person_gbp - expected_per_person) < 0.02
+    assert breakdown.square_as_fraction_of_equal_claim == pytest.approx(
+        breakdown.economic_annual_rent_gbp / expected_per_person,
+        rel=1e-4,
+    )
+    assert any("Ogilvie" in note or "equal-share" in note.lower() for note in breakdown.notes)
+
+
+def test_lineage_config_has_core_and_satellite():
+    from agr.config import load_config
+
+    # Clear cached config so integrity/lineage edits are visible in-process.
+    load_config.cache_clear()
+    config = load_config()
+    core_ids = {entry["id"] for entry in config["lineage"]["core"]}
+    assert {
+        "smith",
+        "ricardo",
+        "ogilvie",
+        "george",
+        "gaffney",
+        "harrison",
+        "stiglitz",
+        "macfarlane",
+        "sandilands",
+        "wightman",
+        "pickard",
+    }.issubset(core_ids)
+    assert config["macro"]["atcor"] is True
+    assert config["macro"]["ebcor"] is True
+    assert config["integrity"]["estimate_kind"] == "map_residual_research"
+    assert len(config["integrity"]["caveats"]) >= 4
+
+
+def test_integrity_fields_on_breakdown():
+    from agr.config import load_config
+
+    load_config.cache_clear()
+    square = snap_to_w3w_grid(55.9533, -3.1883)
+    breakdown = calculate_square_agr(square)
+
+    assert breakdown.estimate_kind == "map_residual_research"
+    assert "research" in breakdown.estimate_label.lower()
+    assert breakdown.site_share_source in ("slrg_60pct", "wightman_49pct")
+    assert breakdown.national_rent_pool_gbp == 90_000_000_000
+    assert len(breakdown.integrity_caveats) >= 4
+    assert any("macro" in note.lower() or "pool" in note.lower() for note in breakdown.notes)

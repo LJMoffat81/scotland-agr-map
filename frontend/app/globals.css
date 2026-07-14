@@ -205,6 +205,31 @@ button.primary:disabled {
   margin-top: 1.75rem;
 }
 
+.methodology-page h3 {
+  font-size: 1rem;
+  color: var(--slrg-navy);
+  margin-top: 1.25rem;
+}
+
+.lineage-list {
+  padding-left: 1.25rem;
+}
+
+.lineage-list li {
+  margin-bottom: 0.55rem;
+}
+
+.integrity-banner {
+  background: #f7f3e9;
+  border: 1px solid #e0d4b8;
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  margin: 0.75rem 0 1rem;
+  font-size: 0.88rem;
+  color: #3d3420;
+  line-height: 1.45;
+}
+
 .formula {
   background: #f0f4f8;
   border: 1px solid #d9e2ec;

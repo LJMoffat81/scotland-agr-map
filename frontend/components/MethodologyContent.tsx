@@ -12,13 +12,37 @@ type Signoff = {
   notes: string;
 };
 
+type LineageEntry = {
+  id: string;
+  name: string;
+  role: string;
+  summary: string;
+};
+
 type AgrConfig = {
   economist_signoff?: Signoff;
+  lineage?: {
+    core: LineageEntry[];
+    satellite: LineageEntry[];
+  };
+  equal_share?: {
+    enabled: boolean;
+    scotland_population: number;
+    notes: string;
+  };
+  integrity?: {
+    estimate_kind: string;
+    estimate_label: string;
+    macro_pool_label: string;
+    caveats: string[];
+  };
   macro: {
     rent_share_of_gdp: number;
     scotland_income_tax_replacement_gbp: number;
     estimated_scotland_annual_rent_gbp: number;
     growth_boost_percentage_points: number;
+    atcor?: boolean;
+    ebcor?: boolean;
   };
   valuation: {
     primary_method: string;
@@ -75,21 +99,108 @@ export default function MethodologyContent() {
       : config.site_share.residential_wightman
     : null;
 
+  const equalSharePerPerson =
+    config?.equal_share?.enabled && config.equal_share.scotland_population > 0
+      ? config.macro.estimated_scotland_annual_rent_gbp /
+        config.equal_share.scotland_population
+      : null;
+
   return (
     <main className="methodology-page">
       <h1>Methodology</h1>
       <p>
         Scotland AGR Map estimates Annual Ground Rent (AGR) for each What3Words
-        3×3 metre square (9 sqm) using the SLRG methodology stack.
+        3×3 metre square (9 sqm). <strong>Charge maths</strong> use Wightman residual
+        valuation, Pickard de-speculation, and Sandilands policy scenarios. The wider
+        intellectual lineage explains what ground-rent is and why the community may
+        claim it.
+      </p>
+      <p className="integrity-banner" role="note">
+        {config?.integrity?.estimate_label ?? "Map residual AGR (research)"} is not an
+        official tax bill. The Sandilands national rent pool is a separate macro concept —
+        map squares are not calibrated to sum to that pool.
       </p>
 
       <section>
-        <h2>1. Roger Sandilands (macro)</h2>
+        <h2>Two rent concepts</h2>
+        <ul>
+          <li>
+            <strong>{config?.integrity?.estimate_label ?? "Map residual AGR"}</strong> —
+            Wightman residual proxy → Pickard de-speculation → yield. Used for per-square
+            full AGR and as the base that scenarios scale.
+          </li>
+          <li>
+            <strong>
+              {config?.integrity?.macro_pool_label ?? "National rent pool (Sandilands)"}
+            </strong>{" "}
+            (
+            {config
+              ? formatGbp(config.macro.estimated_scotland_annual_rent_gbp)
+              : "…"}
+            /year) — used for equal-share illustration and the income-tax scale factor only.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Integrity &amp; limitations</h2>
+        {config?.integrity?.caveats ? (
+          <ul>
+            {config.integrity.caveats.map((caveat) => (
+              <li key={caveat}>{caveat}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="meta">
+            Caveats load from API config (<code>integrity.caveats</code>) when the backend
+            is online.
+          </p>
+        )}
+      </section>
+
+      <section>
+        <h2>Intellectual lineage</h2>
+        <p className="meta">
+          Pedagogical layers only — they do not replace residual / de-speculation maths.
+        </p>
+        {config?.lineage?.core ? (
+          <ol className="lineage-list">
+            {config.lineage.core.map((entry) => (
+              <li key={entry.id}>
+                <strong>{entry.name}</strong> — {entry.summary}
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="meta">Lineage loads from API config when the backend is online.</p>
+        )}
+        {config?.lineage?.satellite && config.lineage.satellite.length > 0 && (
+          <>
+            <h3>Also see</h3>
+            <ul>
+              {config.lineage.satellite.map((entry) => (
+                <li key={entry.id}>
+                  <strong>{entry.name}</strong> — {entry.summary}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </section>
+
+      <section>
+        <h2>1. Operational — Roger Sandilands (macro)</h2>
         <ul>
           <li>
             True economic rent is approximately{" "}
             {config ? `${(config.macro.rent_share_of_gdp * 100).toFixed(0)}%` : "…"} of
             GDP, not the ~£417m shown in official accounts.
+          </li>
+          <li>
+            <strong>Gaffney ATCOR</strong>
+            {config?.macro.atcor ? " (enabled in config)" : ""}: taxes on wages and
+            profits ultimately load onto land rent; Sandilands applies the Scotland
+            income-tax replacement case.
           </li>
           <li>
             Replacing Scotland Income Tax could raise{" "}
@@ -100,13 +211,13 @@ export default function MethodologyContent() {
             {config
               ? `${config.macro.growth_boost_percentage_points}%`
               : "…"}{" "}
-            GDP growth (zero deadweight loss on land).
+            GDP growth (zero deadweight loss on pure land rent).
           </li>
         </ul>
       </section>
 
       <section>
-        <h2>2. Andy Wightman (site valuation)</h2>
+        <h2>2. Operational — Andy Wightman (site valuation)</h2>
         <p>Per-square site value uses the residual method at council level:</p>
         <pre className="formula">
           site_capital = HPI_average_price × site_share ÷ typical_dwelling_sqm
@@ -123,18 +234,21 @@ export default function MethodologyContent() {
             {config ? `${config.valuation.typical_dwelling_sqm} sqm` : "…"}
           </li>
           <li>Rural councils fall back to HPI-adjusted land-use category values.</li>
+          <li>
+            Smith/Ricardo framing: isolate <em>ground-rent</em> of location, not buildings.
+          </li>
         </ul>
       </section>
 
       <section>
-        <h2>3. Duncan Pickard (de-speculation)</h2>
+        <h2>3. Operational — Duncan Pickard (de-speculation)</h2>
         <ul>
           <li>
             Urban discount:{" "}
             {config
               ? `${(config.despeculation.urban_speculation_discount * 100).toFixed(0)}%`
               : "…"}{" "}
-            of market-implied site value.
+            of market-implied site value (Harrison: speculative land cycles).
           </li>
           <li>
             Farmland discount:{" "}
@@ -142,6 +256,45 @@ export default function MethodologyContent() {
               ? `${(config.despeculation.farmland_market_to_productive * 100).toFixed(0)}%`
               : "…"}{" "}
             (productive value, not speculative market price).
+          </li>
+          <li>
+            Stiglitz: public amenity and infrastructure raise land values — the rent
+            this map measures is largely community-created.
+          </li>
+          <li>
+            Macfarlane: most of a home&apos;s price is land/location, not construction.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Equal-share illustration (Ogilvie / Paine)</h2>
+        <p>
+          Each square&apos;s economic rent is also shown as a fraction of one Scot&apos;s
+          equal annual claim on the national rent pool (framing only).
+        </p>
+        <pre className="formula">
+          {`equal_share_per_person = rent_pool ÷ population
+square_share = economic_rent_of_square ÷ equal_share_per_person`}
+        </pre>
+        <ul>
+          <li>
+            Rent pool:{" "}
+            {config
+              ? formatGbp(config.macro.estimated_scotland_annual_rent_gbp)
+              : "…"}
+          </li>
+          <li>
+            Population:{" "}
+            {config?.equal_share?.scotland_population
+              ? config.equal_share.scotland_population.toLocaleString("en-GB")
+              : "…"}
+          </li>
+          <li>
+            Equal claim ≈{" "}
+            {equalSharePerPerson
+              ? `£${Math.round(equalSharePerPerson).toLocaleString("en-GB")}/person/year`
+              : "…"}
           </li>
         </ul>
       </section>
@@ -153,7 +306,8 @@ export default function MethodologyContent() {
 2. site_capital_per_sqm = residual_method(council)     [Wightman]
 3. despeculated = site_capital × discount_factor         [Pickard]
 4. economic_rent = despeculated × yield_rate
-5. scenario_charge = policy adjustment (see below)`}
+5. scenario_charge = policy adjustment (see below)
+6. equal-share stats from national rent pool             [Ogilvie/Paine]`}
         </pre>
       </section>
 
@@ -166,7 +320,11 @@ export default function MethodologyContent() {
               <li key={id}>
                 <strong>{scenario.label}</strong>
                 {id === "full_agr" && scenario.capture_rate !== undefined && (
-                  <> — capture {(scenario.capture_rate * 100).toFixed(0)}% of economic rent</>
+                  <>
+                    {" "}
+                    — capture {(scenario.capture_rate * 100).toFixed(0)}% of economic rent
+                    (Smith–George full recovery)
+                  </>
                 )}
                 {id === "replace_income_tax" && (
                   <>
@@ -175,14 +333,14 @@ export default function MethodologyContent() {
                     {formatGbp(config.macro.scotland_income_tax_replacement_gbp)} from
                     an estimated{" "}
                     {formatGbp(config.macro.estimated_scotland_annual_rent_gbp)} rent
-                    pool
+                    pool (Sandilands + Gaffney ATCOR)
                   </>
                 )}
                 {id === "revenue_neutral" && scenario.rate_per_pound !== undefined && (
                   <>
                     {" "}
                     — {(scenario.rate_per_pound * 100).toFixed(2)}% of de-speculated site
-                    value
+                    value (Wightman)
                   </>
                 )}
               </li>
@@ -222,13 +380,15 @@ export default function MethodologyContent() {
           <p className="meta">Sign-off status unavailable (API offline).</p>
         )}
         <p className="meta">
-          To approve parameters, update <code>economist_signoff</code> in{" "}
-          <code>data/config/agr.yaml</code> and redeploy the API.
+          Charge parameters live in <code>economist_signoff</code> / macro blocks of{" "}
+          <code>data/config/agr.yaml</code>. Lineage is pedagogical. Redeploy the API
+          after edits.
         </p>
       </section>
 
       <p className="meta">
-        Research estimate — not an official tax assessment.
+        Research estimate — not an official tax assessment. Full write-up:{" "}
+        <code>docs/methodology.md</code>.
       </p>
       <p>
         <a href="/">Back to map</a>

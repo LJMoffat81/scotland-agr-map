@@ -1,5 +1,84 @@
 # Scotland AGR Map — calculation configuration
 # SLRG economist sign-off: approved 2026-06-08 (Sandilands / Wightman / Pickard)
+# Intellectual lineage (Smith → … → Pickard) is pedagogical; charge maths unchanged.
+
+# ---------------------------------------------------------------------------
+# Intellectual lineage (methodology / UI). Does not change residual maths.
+# Core layers appear on the methodology page; satellites are "also see".
+# ---------------------------------------------------------------------------
+lineage:
+  core:
+    - id: smith
+      name: "Adam Smith"
+      role: "classical_ground_rent"
+      summary: "Ground-rent is distinct revenue; can specially bear tax without taxing labour or buildings."
+    - id: ricardo
+      name: "David Ricardo"
+      role: "differential_rent"
+      summary: "Locational surplus accrues as rent — why this square costs more than that one."
+    - id: ogilvie
+      name: "William Ogilvie"
+      role: "equal_natural_right"
+      summary: "Equal natural right in land; improvements private; community claim on land rent (Scotland, 1781/82)."
+    - id: george
+      name: "Henry George"
+      role: "full_rent_recovery"
+      summary: "Full recovery of site rent as the primary public revenue (single-tax tradition)."
+    - id: gaffney
+      name: "Mason Gaffney"
+      role: "atcor_ebcor"
+      summary: "ATCOR / EBCOR — taxes and excess burdens ultimately load onto land rent."
+    - id: harrison
+      name: "Fred Harrison"
+      role: "boom_bust_speculation"
+      summary: "Land-price cycles and speculative capitalisation inflate market values above economic rent."
+    - id: stiglitz
+      name: "Joseph Stiglitz"
+      role: "henry_george_theorem"
+      summary: "Public goods and amenity capitalise into land values — community creates the rent."
+    - id: macfarlane
+      name: "Laurie Macfarlane"
+      role: "modern_housing_land_market"
+      summary: "Housing crisis is largely a land market; hope value and financialisation (Scotland/UK)."
+    - id: sandilands
+      name: "Roger Sandilands"
+      role: "scotland_macro"
+      summary: "Scotland rent pool (~50% of GDP); income-tax replacement and growth arguments."
+    - id: wightman
+      name: "Andy Wightman"
+      role: "residual_valuation"
+      summary: "Residual / HABU site capital for Scottish locations."
+    - id: pickard
+      name: "Duncan Pickard"
+      role: "despeculation"
+      summary: "Charge economic (productive) rent after removing speculative premium."
+  satellite:
+    - id: mill
+      name: "John Stuart Mill"
+      role: "unearned_increment"
+      summary: "Social claim on unearned rises in land value from general progress."
+    - id: paine
+      name: "Thomas Paine"
+      role: "agrarian_dividend"
+      summary: "Agrarian Justice — land rent as the basis for an equal citizen dividend."
+    - id: mcewen
+      name: "John McEwen"
+      role: "ownership_transparency"
+      summary: "Who Owns Scotland — concentration of land ownership and who captures rent."
+    - id: churchill_1909
+      name: "Winston Churchill (1909 land campaign)"
+      role: "uk_political_history"
+      summary: "Historic UK political case against land monopoly and for taxing land values."
+    - id: slc
+      name: "Scottish Land Commission"
+      role: "modern_reform_options"
+      summary: "Hope value, public interest, and LVT policy options for contemporary Scotland."
+
+# Ogilvie / Paine equal-share illustration (framing only; same economic rent).
+equal_share:
+  enabled: true
+  scotland_population: 5480000
+  notes: "Equal annual claim ≈ Scotland rent pool ÷ population (Ogilvie right; Paine dividend framing)."
 
 macro:
   rent_share_of_gdp: 0.50
@@ -7,6 +86,9 @@ macro:
   estimated_scotland_annual_rent_gbp: 90000000000
   deadweight_loss_conventional: 0.10
   growth_boost_percentage_points: 2.0
+  # Gaffney formalised ATCOR/EBCOR; Sandilands applies the rent-shift case to Scotland.
+  atcor: true
+  ebcor: true
 
 valuation:
   primary_method: residual
@@ -45,7 +127,7 @@ land_use_values_gbp_per_ha_2009:
 scenarios:
   full_agr:
     capture_rate: 1.0
-    label: "Full AGR (George / Sandilands)"
+    label: "Full AGR (Smith–George / Sandilands)"
   replace_income_tax:
     target_gbp: 11500000000
     label: "Replace Scotland Income Tax (Sandilands)"
@@ -53,11 +135,25 @@ scenarios:
     rate_per_pound: 0.0316
     label: "Replace Council Tax + NDR (Wightman)"
 
-disclaimer: "SLRG research estimate (economist approved 2026-06-08) — not an official tax assessment"
+disclaimer: "SLRG research estimate (economist approved 2026-06-08) — not an official tax assessment or rates bill"
+
+# Product integrity labels (shown in UI / methodology). Charge maths unchanged.
+integrity:
+  estimate_kind: "map_residual_research"
+  estimate_label: "Map residual AGR (research)"
+  macro_pool_label: "National rent pool (Sandilands)"
+  caveats:
+    - "Square £ figures are Wightman residual proxies with Pickard de-speculation — not a VOA/ROS official valuation."
+    - "The Sandilands national rent pool (£90bn) is a separate macro concept; summing all map squares is not calibrated to equal that pool."
+    - "Urban residual uses residential HPI averages at council level (flat within council); non-domestic land is thin outside rural land-use fallbacks."
+    - "HABU is aspirational: market HPI still embeds credit conditions and some hope value; Pickard discounts are static policy knobs, not cycle-year models."
+    - "Site share defaults to SLRG 60% for display (Wightman research share 49% is available in config)."
+    - "Yield (5%) converts site capital to annual rent; change it only with economist review."
+    - "Intellectual lineage explains why AGR is legitimate; it does not replace residual maths."
 
 economist_signoff:
   status: approved
   signed_by: "SLRG economist"
   signed_at: "2026-06-08"
   organisation: "Scottish Land Revenue Group"
-  notes: "Macro, site_share, despeculation, and scenario parameters approved for public deployment."
+  notes: "Macro, site_share, despeculation, and scenario parameters approved for public deployment. Intellectual lineage and integrity caveats are pedagogical; they do not alter residual charge maths."

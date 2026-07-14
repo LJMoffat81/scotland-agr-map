@@ -57,7 +57,11 @@ def compute_scenarios(
             id="full_agr",
             label=full_cfg["label"],
             annual_charge_gbp=round(full_charge, 2),
-            description="Charge the full economic rental value of the site (George / Sandilands).",
+            description=(
+                "Full map residual economic rent for this square "
+                "(Wightman–Pickard estimate; Smith/George full recovery framing). "
+                "Not calibrated so all squares sum to the national rent pool."
+            ),
             effective_rate=full_cfg["capture_rate"],
         ),
         "replace_income_tax": ScenarioCharge(
@@ -65,8 +69,10 @@ def compute_scenarios(
             label=scenarios_cfg["replace_income_tax"]["label"],
             annual_charge_gbp=round(income_tax_charge, 2),
             description=(
-                f"Scotland-wide charge scaled to raise £{income_tax_target / 1e9:.1f}bn "
-                f"from an estimated £{estimated_total_rent / 1e9:.0f}bn annual rent pool."
+                f"Scales this square’s map economic rent so Scotland raises "
+                f"£{income_tax_target / 1e9:.1f}bn if the national pool is "
+                f"£{estimated_total_rent / 1e9:.0f}bn (Sandilands macro; Gaffney ATCOR). "
+                "Uses the national pool ratio, not a sum of map cells."
             ),
             effective_rate=round(income_tax_rate, 4),
         ),
@@ -75,8 +81,8 @@ def compute_scenarios(
             label=revenue_cfg["label"],
             annual_charge_gbp=round(revenue_charge, 2),
             description=(
-                f"Charge {revenue_rate * 100:.2f}% of de-speculated site value "
-                "(Wightman council-tax + NDR replacement rate)."
+                f"Charge {revenue_rate * 100:.2f}% of this square’s de-speculated site capital "
+                "(Wightman-style CT + NDR replacement rate on map residual capital)."
             ),
             effective_rate=revenue_rate,
         ),

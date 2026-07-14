@@ -1,10 +1,28 @@
 # Scotland AGR Map
 
-Interactive Annual Ground Rent map for Scotland. Each **What3Words 3×3 m square** (9 sqm) gets its own AGR estimate based on SLRG methodology:
+Interactive Annual Ground Rent map for Scotland. Each **What3Words 3×3 m square** (9 sqm) gets its own AGR estimate based on SLRG methodology.
 
-- **Roger Sandilands** — macro rent theory, ATCOR, Scotland GDP scenarios
-- **Andy Wightman** — site valuation (residual method, HABU)
-- **Duncan Pickard** — de-speculation (economic rent, not market bubble price)
+**Operational charge maths:** Wightman residual → Pickard de-speculation → Sandilands scenarios.
+
+**Intellectual lineage** (methodology and breakdown notes — does not change residual maths):
+
+| Layer | Thinker | Role |
+|-------|---------|------|
+| Classical | **Adam Smith** | Ground-rent as distinct, taxable revenue |
+| Classical | **David Ricardo** | Differential / locational rent |
+| Scottish OG | **William Ogilvie** | Equal natural right in land |
+| Programme | **Henry George** | Full site-rent recovery |
+| Public finance | **Mason Gaffney** | ATCOR / EBCOR |
+| Cycles | **Fred Harrison** | Boom–bust; speculative land prices |
+| Modern theory | **Joseph Stiglitz** | Public goods capitalise into land |
+| Housing/land | **Laurie Macfarlane** | Housing crisis = land market |
+| Scotland macro | **Roger Sandilands** | Rent pool; income-tax shift |
+| Valuation | **Andy Wightman** | Residual / HABU site capital |
+| Charge base | **Duncan Pickard** | Economic rent after speculation |
+
+Also see: Mill, Paine, McEwen, Churchill 1909, Scottish Land Commission — details in [docs/methodology.md](docs/methodology.md).
+
+**Integrity:** map residual £ figures are a research estimate (not a rates bill). The Sandilands national rent pool is a separate macro concept used for equal-share and income-tax scaling — map squares are not calibrated to sum to that pool. See methodology “Two rent concepts”.
 
 Built for [SLRG](https://www.slrg.scot) as a standalone public education and advocacy tool.
 
