@@ -39,7 +39,7 @@ Built for [SLRG](https://www.slrg.scot) as a standalone public education and adv
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | Next.js 15, MapLibre GL JS |
+| Frontend | Next.js 16, MapLibre GL JS |
 | Backend | Python FastAPI + valuation service |
 | Data layer | `backend/datasources/` (HPI residual + sales schema/store) |
 | Config | `data/config/agr.yaml`, `sources.yaml` |
