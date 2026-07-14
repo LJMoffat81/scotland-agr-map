@@ -93,6 +93,8 @@ type Props = {
   what3words?: string | null;
   w3wConfigured?: boolean;
   salesContext?: SalesContext | null;
+  onDownloadReport?: () => void;
+  reportDownloading?: boolean;
 };
 
 type DetailTab = "summary" | "calculate" | "about";
@@ -148,6 +150,8 @@ export default function AgrBreakdown({
   what3words,
   w3wConfigured,
   salesContext,
+  onDownloadReport,
+  reportDownloading,
 }: Props) {
   const [tab, setTab] = useState<DetailTab>("summary");
   const active = agr.scenarios[scenario];
@@ -299,6 +303,17 @@ export default function AgrBreakdown({
           <p className="meta tight">
             <a href="/methodology">Full methodology &amp; sources</a>
           </p>
+          {onDownloadReport && (
+            <button
+              type="button"
+              className="primary"
+              style={{ marginTop: "0.75rem", width: "100%" }}
+              disabled={reportDownloading}
+              onClick={onDownloadReport}
+            >
+              {reportDownloading ? "Preparing report…" : "Download assessment report"}
+            </button>
+          )}
         </div>
       )}
 

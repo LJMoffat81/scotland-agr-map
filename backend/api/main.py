@@ -10,9 +10,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from api.cors import cors_settings
+from fastapi.responses import PlainTextResponse
+
 from agr.engine import breakdown_to_dict
 from agr.config import load_config
 from agr.overrides import merge_config_overrides
+from agr.report import API_VERSION, build_assessment_report
 from agr.service import ValuationService
 from spatial.grid import snap_to_w3w_grid
 from spatial.w3w import (
@@ -23,11 +26,15 @@ from spatial.w3w import (
     words_to_coordinates,
 )
 from validation.glasgow_ward_18 import run_validation
+from validation.ratio_study import ratio_study_points
 
 app = FastAPI(
     title="Scotland AGR Map API",
-    description="Annual Ground Rent estimates for What3Words 3x3m squares in Scotland",
-    version="0.6.1",
+    description=(
+        "Professional Annual Ground Rent assessments for Scotland "
+        "(What3Words 3×3 m grid, SLRG-aligned residual roll)."
+    ),
+    version=API_VERSION,
 )
 
 _allowed_origins, _allowed_origin_regex = cors_settings()
@@ -142,11 +149,12 @@ def health() -> dict:
     return {
         "status": "ok",
         "service": "scotland-agr-map-api",
-        "version": "0.6.1",
+        "version": API_VERSION,
         "w3w_configured": w3w_is_configured(),
         "economist_signoff_status": signoff.get("status", "unknown"),
         "sales_pipeline": "comps_crosscheck",
         "data_policy": "no_portal_scraping",
+        "assessment_reports": True,
     }
 
 
@@ -178,6 +186,61 @@ def validate_glasgow_ward_18(
     if not WARD_18_GEOJSON.exists():
         raise HTTPException(status_code=503, detail="Glasgow Ward 18 boundary not built yet.")
     return run_validation(sample_count=samples)
+
+
+@app.get("/validation/ratio-study")
+def validation_ratio_study(
+    samples: int = Query(default=8, ge=3, le=24),
+    scenario: str = Query(default="full_agr"),
+) -> dict:
+    """Residual vs sales-comp extraction ratios (Ward 18 samples when available)."""
+    if not WARD_18_GEOJSON.exists():
+        raise HTTPException(status_code=503, detail="Glasgow Ward 18 boundary not built yet.")
+    from validation.glasgow_ward_18 import _sample_points_in_ward
+
+    points = _sample_points_in_ward(samples)
+    study = ratio_study_points(points, scenario=scenario)
+    study["area"] = "glasgow_ward_18"
+    study["note"] = (
+        "Research structure for professional QA. Synthetic sales make production_ready=false."
+    )
+    return study
+
+
+@app.get("/assessment/report")
+def assessment_report(
+    lat: float = Query(..., ge=-90, le=90),
+    lng: float = Query(..., ge=-180, le=180),
+    scenario: str = Query(default="full_agr"),
+    include_sales_context: bool = Query(default=True),
+    format: str = Query(default="json", description="json or markdown"),
+    yield_rate: float | None = Query(default=None),
+    urban_speculation: float | None = Query(default=None),
+    farmland_factor: float | None = Query(default=None),
+):
+    """Downloadable professional assessment pack for one location."""
+    _scotland_bounds_check(lat, lng)
+    config = _parse_sensitivity(yield_rate, urban_speculation, farmland_factor)
+    try:
+        report = build_assessment_report(
+            lat,
+            lng,
+            scenario=scenario,
+            config=config,
+            include_sales=include_sales_context,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if format.lower() in ("md", "markdown", "text"):
+        return PlainTextResponse(
+            report["markdown"],
+            media_type="text/markdown; charset=utf-8",
+            headers={
+                "Content-Disposition": f'attachment; filename="{report["report_id"]}.md"'
+            },
+        )
+    return report
 
 
 @app.get("/square")

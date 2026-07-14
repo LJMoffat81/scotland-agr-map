@@ -95,6 +95,7 @@ export default function ScotlandMap() {
   const [urbanPickardPct, setUrbanPickardPct] = useState(70);
   const [wardStory, setWardStory] = useState<string | null>(null);
   const [includeSales, setIncludeSales] = useState(true);
+  const [reportDownloading, setReportDownloading] = useState(false);
 
   const sensitivityQuery = useCallback(() => {
     const params = new URLSearchParams();
@@ -358,6 +359,36 @@ export default function ScotlandMap() {
     }
   };
 
+  const downloadReport = async () => {
+    if (!result) return;
+    setReportDownloading(true);
+    setError(null);
+    try {
+      const q =
+        `${API_URL}/assessment/report?lat=${result.square.lat}&lng=${result.square.lng}` +
+        `&scenario=${scenario}&format=markdown` +
+        (includeSales ? "&include_sales_context=true" : "") +
+        sensitivityQuery();
+      const response = await fetch(q);
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.detail ?? "Failed to download report");
+      }
+      const text = await response.text();
+      const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `scotland-agr-${result.square.lat.toFixed(5)}_${result.square.lng.toFixed(5)}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Report download failed");
+    } finally {
+      setReportDownloading(false);
+    }
+  };
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -593,6 +624,8 @@ export default function ScotlandMap() {
                 what3words={result.what3words}
                 w3wConfigured={result.w3w_configured}
                 salesContext={result.sales_context}
+                onDownloadReport={() => void downloadReport()}
+                reportDownloading={reportDownloading}
               />
             )}
           </div>

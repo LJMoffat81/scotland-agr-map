@@ -85,7 +85,25 @@ uvicorn api.main:app --reload --app-dir .
 ```
 
 API: http://127.0.0.1:8000  
-Docs: http://127.0.0.1:8000/docs
+Docs: http://127.0.0.1:8000/docs  
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /square` | AGR for a point / W3W cell |
+| `GET /assessment/report` | Professional JSON or markdown report (`format=markdown`) |
+| `GET /validation/ratio-study` | Residual vs sales-comp ratios (Ward 18 samples) |
+| `GET /sales/status` | Sales pipeline status |
+
+### Professional workflow
+
+```powershell
+# Validate synthetic fixtures
+python -m etl.ingest_sales --path ../data/fixtures/sales/ward18_synthetic.jsonl
+
+# After ROS extract arrives (see docs/ROS_ENQUIRY.md)
+python -m etl.convert_sales_csv --input ../data/licensed/raw.csv --output ../data/licensed/sales.jsonl ...
+python -m etl.ingest_sales --path ../data/licensed/sales.jsonl --require-production
+```
 
 ### Frontend
 
