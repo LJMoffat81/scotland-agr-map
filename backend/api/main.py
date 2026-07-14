@@ -10,9 +10,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from api.cors import cors_settings
-from agr.engine import breakdown_to_dict, calculate_square_agr
+from agr.engine import breakdown_to_dict
 from agr.config import load_config
 from agr.overrides import merge_config_overrides
+from agr.service import ValuationService
 from spatial.grid import snap_to_w3w_grid
 from spatial.w3w import (
     W3WNotConfiguredError,
@@ -26,7 +27,7 @@ from validation.glasgow_ward_18 import run_validation
 app = FastAPI(
     title="Scotland AGR Map API",
     description="Annual Ground Rent estimates for What3Words 3x3m squares in Scotland",
-    version="0.5.2",
+    version="0.6.0",
 )
 
 _allowed_origins, _allowed_origin_regex = cors_settings()
@@ -80,17 +81,19 @@ def _square_response(
     *,
     words_hint: str | None = None,
     config: dict | None = None,
+    include_sales_context: bool = False,
 ) -> dict:
     _scotland_bounds_check(lat, lng)
     square = snap_to_w3w_grid(lat, lng)
-    breakdown = calculate_square_agr(square, scenario=scenario, config=config)
+    service = ValuationService(config=config if config is not None else load_config())
+    breakdown = service.assess_square(square, scenario=scenario)
 
     # Prefer caller-supplied words; otherwise reverse-geocode snapped cell if key present
     what3words = words_hint
     if what3words is None:
         what3words = try_coordinates_to_words(square.lat, square.lng)
 
-    return {
+    payload = {
         "square": {
             "lat": square.lat,
             "lng": square.lng,
@@ -106,8 +109,21 @@ def _square_response(
         },
         "what3words": what3words,
         "w3w_configured": w3w_is_configured(),
+        "method_family": "valuer_residual_roll",
         "agr": breakdown_to_dict(breakdown),
     }
+    if include_sales_context:
+        # Default service loads synthetic fixture for research — never claim as ROS
+        research = ValuationService.default()
+        if config is not None:
+            research = ValuationService(config=config, sales=research.sales)
+        ctx = research.sales_context(square.lat, square.lng)
+        ctx["disclaimer"] = (
+            "Sales context may include synthetic fixtures for pipeline tests. "
+            "Only production_eligible rows may be treated as real market evidence."
+        )
+        payload["sales_context"] = ctx
+    return payload
 
 
 def _load_geojson(path: Path) -> JSONResponse:
@@ -126,9 +142,11 @@ def health() -> dict:
     return {
         "status": "ok",
         "service": "scotland-agr-map-api",
-        "version": "0.5.2",
+        "version": "0.6.0",
         "w3w_configured": w3w_is_configured(),
         "economist_signoff_status": signoff.get("status", "unknown"),
+        "sales_pipeline": "scaffolded",
+        "data_policy": "no_portal_scraping",
     }
 
 
@@ -183,6 +201,10 @@ def get_square(
         default=None,
         description="Sensitivity: Pickard farmland productive factor (0.1–1.0). Default 0.20.",
     ),
+    include_sales_context: bool = Query(
+        default=False,
+        description="Include nearby sales from fixture/licensed store (research).",
+    ),
 ) -> dict:
     words_hint: str | None = None
     if words:
@@ -207,10 +229,34 @@ def get_square(
     config = _parse_sensitivity(yield_rate, urban_speculation, farmland_factor)
     try:
         return _square_response(
-            lat, lng, scenario=scenario, words_hint=words_hint, config=config
+            lat,
+            lng,
+            scenario=scenario,
+            words_hint=words_hint,
+            config=config,
+            include_sales_context=include_sales_context,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/sales/status")
+def sales_status() -> dict:
+    """Pipeline status for professional sales ingest (fixtures vs licensed)."""
+    service = ValuationService.default()
+    summary = service.sales.summary() if service.sales else {"count": 0}
+    return {
+        "pipeline": "scaffolded",
+        "portal_scraping": False,
+        "preferred_authority": "Registers of Scotland",
+        "fixture_loaded": bool(service.sales and len(service.sales) > 0),
+        "store": summary,
+        "docs": [
+            "docs/DATA_LICENSING.md",
+            "docs/DATA_ACQUISITION.md",
+            "docs/PROFESSIONAL_STANDARD.md",
+        ],
+    }
 
 
 @app.get("/postcode/{postcode}")
@@ -223,6 +269,7 @@ def get_postcode_square(
     yield_rate: float | None = Query(default=None),
     urban_speculation: float | None = Query(default=None),
     farmland_factor: float | None = Query(default=None),
+    include_sales_context: bool = Query(default=False),
 ) -> dict:
     normalised = postcode.replace(" ", "").upper()
     if len(normalised) < 5 or len(normalised) > 7:
@@ -250,7 +297,13 @@ def get_postcode_square(
 
     config = _parse_sensitivity(yield_rate, urban_speculation, farmland_factor)
     try:
-        square_payload = _square_response(lat, lng, scenario=scenario, config=config)
+        square_payload = _square_response(
+            lat,
+            lng,
+            scenario=scenario,
+            config=config,
+            include_sales_context=include_sales_context,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except HTTPException as exc:

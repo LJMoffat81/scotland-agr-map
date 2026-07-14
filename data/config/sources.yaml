@@ -1,6 +1,17 @@
-# Free public data sources — no paid API keys required
+# Professional source registry — open or licensed only.
+# Scraping property portals is forbidden (see docs/DATA_LICENSING.md).
+
+policy:
+  allow_portal_scraping: false
+  preferred_sales_authority: "Registers of Scotland"
+  notes: >
+    England & Wales HM Land Registry Price Paid is not a substitute for
+    Scottish completed sales. Use ROS open products or licensed extracts.
 
 hpi:
+  name: UK House Price Index
+  licence: OGL
+  role: council_level_average_price_for_residual_mv
   base_url: https://publicdata.landregistry.gov.uk/market-trend-data/house-price-index-data
   average_prices_template: Average-prices-{period}.csv
   indices_template: Indices-{period}.csv
@@ -8,6 +19,9 @@ hpi:
   scotland_region_code: S92000003
 
 postcodes:
+  name: postcodes.io
+  licence: open
+  role: geocoding
   api_url: https://api.postcodes.io/postcodes
 
 councils:
@@ -31,7 +45,30 @@ boundaries:
     validation_label: "Glasgow Ward 18 — East Centre (Wightman validation case study)"
 
 parcels:
+  name: ROS INSPIRE cadastral parcels (WMS)
+  role: parcel_geometry_lookup
   wms_url: https://ros-inspire.themapcloud.com/maps/wms
   wms_layer: CP.CadastralParcel
   query_delta_degrees: 0.001
   timeout_seconds: 10
+
+sales:
+  status: scaffolded
+  authority: Registers of Scotland
+  fixture_path: data/fixtures/sales/ward18_synthetic.jsonl
+  licensed_dir: data/licensed
+  schema: backend/datasources/sales_schema.py
+  forbidden:
+    - zoopla_scrape
+    - rightmove_scrape
+    - espc_scrape
+    - unofficial_scraped_dumps
+
+what3words:
+  role: place_grid_and_optional_address
+  grid: 3m_aligned
+  api_env: W3W_API_KEY
+
+rebuild_costs:
+  role: drc_for_residual
+  config_path: data/config/agr.yaml  # valuer_roll.rebuild

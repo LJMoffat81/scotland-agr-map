@@ -1,6 +1,9 @@
 # Scotland AGR Map
 
-Interactive Annual Ground Rent map for Scotland. Each **What3Words 3×3 m square** (9 sqm) gets its own AGR estimate based on SLRG methodology.
+Professional **Annual Ground Rent** assessment tool for Scotland (SLRG-aligned).  
+Each **What3Words 3×3 m square** gets a residual AGR estimate; the public UI leads with a clear £/year figure.
+
+**Build standard:** [docs/PROFESSIONAL_STANDARD.md](docs/PROFESSIONAL_STANDARD.md) · **Data policy:** [docs/DATA_LICENSING.md](docs/DATA_LICENSING.md) (no portal scraping).
 
 **Operational charge maths (valuer residual roll):**  
 HABU existing use → **MV − DRC** (Wightman residual) → Pickard economic site capital → **× 5% yield** → Sandilands scenarios.
@@ -37,10 +40,20 @@ Built for [SLRG](https://www.slrg.scot) as a standalone public education and adv
 | Layer | Technology |
 |-------|------------|
 | Frontend | Next.js 15, MapLibre GL JS |
-| Backend | Python FastAPI |
-| Config | `data/config/agr.yaml` |
+| Backend | Python FastAPI + valuation service |
+| Data layer | `backend/datasources/` (HPI residual + sales schema/store) |
+| Config | `data/config/agr.yaml`, `sources.yaml` |
+| Sales path | ROS / licensed extracts → `SalesStore` (fixtures for CI only) |
 | Tiles | OpenStreetMap (free) |
-| W3W | Nonprofit API (apply in Phase 0) |
+| W3W | 3 m grid + optional API key |
+
+## Professional data stance
+
+- **Allowed:** UK HPI, ROS open/licensed products, postcodes.io, documented rebuild tables  
+- **Forbidden:** scraping Zoopla, Rightmove, ESPC, or grey-market scraped dumps  
+- **Next:** acquire ROS pilot sales for Ward 18 / Glasgow → optional OpenAVMKit comparison  
+
+See [docs/DATA_ACQUISITION.md](docs/DATA_ACQUISITION.md).
 
 ## Quick start
 
