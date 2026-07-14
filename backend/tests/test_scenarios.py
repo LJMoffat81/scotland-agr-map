@@ -95,6 +95,7 @@ def test_lineage_config_has_core_and_satellite():
         "pickard",
     }.issubset(core_ids)
     sat_ids = {entry["id"] for entry in config["lineage"]["satellite"]}
+    assert "sci" in sat_ids
     assert "doucet" in sat_ids
     assert "openavmkit" in sat_ids
     assert config["macro"]["atcor"] is True

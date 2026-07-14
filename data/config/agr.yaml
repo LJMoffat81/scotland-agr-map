@@ -66,6 +66,11 @@ lineage:
       name: "Thomas Paine"
       role: "agrarian_dividend"
       summary: "Agrarian Justice — land rent as the basis for an equal citizen dividend."
+    - id: sci
+      name: "School of Cooperative Individualism"
+      role: "georgist_source_library"
+      summary: "Edward J. Dodson's archive of Georgist / single-tax texts, Henry George materials, periodicals, and land-question literature — primary-source library for the lineage."
+      url: "https://cooperative-individualism.org/index.htm"
     - id: doucet
       name: "Lars Doucet / Center for Land Economics"
       role: "modern_lvt_mass_appraisal"
