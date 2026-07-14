@@ -64,44 +64,29 @@ const CELL_AGR_COLOR: maplibregl.ExpressionSpecification = [
   "#b30000",
 ];
 
+/** Postcode-ish vs W3W-ish query. */
+function looksLikePostcode(q: string): boolean {
+  const t = q.trim().replace(/\s+/g, "").toUpperCase();
+  return /^[A-Z]{1,2}\d[A-Z\d]?\d[A-Z]{2}$/i.test(t) || /^[A-Z]{1,2}\d/i.test(t);
+}
+
 export default function ScotlandMap() {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
   const [mapReady, setMapReady] = useState(false);
-  const [lat, setLat] = useState("55.9533");
-  const [lng, setLng] = useState("-3.1883");
-  const [postcode, setPostcode] = useState("EH1 1YZ");
-  const [words, setWords] = useState("filled.count.soap");
+  const [query, setQuery] = useState("");
   const [scenario, setScenario] = useState<ScenarioId>("full_agr");
   const [showHeatmap, setShowHeatmap] = useState(true);
   const [showCellGrid, setShowCellGrid] = useState(false);
   const [layerBusy, setLayerBusy] = useState(false);
-  const [layerNote, setLayerNote] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SquareResponse | null>(null);
-  const [signoffStatus, setSignoffStatus] = useState<string | null>(null);
-  const [apiStatus, setApiStatus] = useState<{ ok: boolean; message: string } | null>(null);
-  const [yieldPct, setYieldPct] = useState(5);
-  const [urbanPickardPct, setUrbanPickardPct] = useState(70);
-  const [includeSales, setIncludeSales] = useState(false);
+  const [apiOk, setApiOk] = useState<boolean | null>(null);
   const [reportDownloading, setReportDownloading] = useState(false);
-
-  const sensitivityQuery = useCallback(() => {
-    const params = new URLSearchParams();
-    const y = yieldPct / 100;
-    const u = urbanPickardPct / 100;
-    if (Math.abs(y - 0.05) > 1e-9) params.set("yield_rate", y.toFixed(4));
-    if (Math.abs(u - 0.7) > 1e-9) params.set("urban_speculation", u.toFixed(4));
-    if (includeSales) params.set("include_sales_context", "true");
-    const s = params.toString();
-    return s ? `&${s}` : "";
-  }, [yieldPct, urbanPickardPct, includeSales]);
 
   const applyResult = useCallback((payload: SquareResponse) => {
     setResult(payload);
-    setLat(payload.square.lat.toFixed(6));
-    setLng(payload.square.lng.toFixed(6));
     setScenario(payload.agr.active_scenario);
 
     const map = mapRef.current;
@@ -145,78 +130,68 @@ export default function ScotlandMap() {
       const sc = nextScenario ?? scenario;
       try {
         const response = await apiFetch(
-          `/square?lat=${nextLat}&lng=${nextLng}&scenario=${sc}${sensitivityQuery()}`,
+          `/square?lat=${nextLat}&lng=${nextLng}&scenario=${sc}`,
         );
         applyResult((await response.json()) as SquareResponse);
-        setApiStatus({ ok: true, message: "via same-origin proxy" });
+        setApiOk(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
-        setApiStatus({ ok: false, message: err instanceof Error ? err.message : "API error" });
+        setApiOk(false);
       } finally {
         setLoading(false);
       }
     },
-    [applyResult, scenario, sensitivityQuery],
+    [applyResult, scenario],
   );
 
-  const fetchPostcode = async (rawPostcode: string) => {
+  const runSearch = async () => {
+    const q = query.trim();
+    if (!q) return;
     setLoading(true);
     setError(null);
     try {
-      const encoded = encodeURIComponent(rawPostcode.trim());
-      const response = await apiFetch(
-        `/postcode/${encoded}?scenario=${scenario}${sensitivityQuery()}`,
-      );
-      applyResult((await response.json()) as SquareResponse);
-      setApiStatus({ ok: true, message: "via same-origin proxy" });
+      // Three words with dots → W3W; else treat as postcode
+      const isWords = /^[a-z]+\.[a-z]+\.[a-z]+$/i.test(q.replace(/^\/+/, ""));
+      if (isWords) {
+        const encoded = encodeURIComponent(q.replace(/^\/+/, ""));
+        const response = await apiFetch(
+          `/square?words=${encoded}&scenario=${scenario}`,
+        );
+        applyResult((await response.json()) as SquareResponse);
+      } else if (looksLikePostcode(q) || q.length >= 5) {
+        const encoded = encodeURIComponent(q);
+        const response = await apiFetch(
+          `/postcode/${encoded}?scenario=${scenario}`,
+        );
+        applyResult((await response.json()) as SquareResponse);
+      } else {
+        setError("Enter a postcode (e.g. EH1 1YZ) or What3Words (word.word.word)");
+        setLoading(false);
+        return;
+      }
+      setApiOk(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
-      setApiStatus({ ok: false, message: err instanceof Error ? err.message : "API error" });
+      setApiOk(false);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchWords = async (rawWords: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const encoded = encodeURIComponent(rawWords.trim());
-      const response = await apiFetch(
-        `/square?words=${encoded}&scenario=${scenario}${sensitivityQuery()}`,
-      );
-      applyResult((await response.json()) as SquareResponse);
-      setApiStatus({ ok: true, message: "via same-origin proxy" });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-      setApiStatus({ ok: false, message: err instanceof Error ? err.message : "API error" });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Health poll
+  // Health: only surface failures
   useEffect(() => {
     let cancelled = false;
     const tick = () => {
       void pingApi().then((s) => {
-        if (!cancelled) setApiStatus(s);
+        if (!cancelled) setApiOk(s.ok);
       });
     };
     tick();
-    const id = setInterval(tick, 15000);
+    const id = setInterval(tick, 20000);
     return () => {
       cancelled = true;
       clearInterval(id);
     };
-  }, []);
-
-  useEffect(() => {
-    void apiJson<{ status?: string }>("/signoff")
-      .then((payload) => {
-        if (payload?.status) setSignoffStatus(payload.status);
-      })
-      .catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -240,7 +215,7 @@ export default function ScotlandMap() {
       zoom: 6.2,
     });
 
-    map.addControl(new maplibregl.NavigationControl(), "top-right");
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
     map.on("load", () => {
       map.addSource("council-agr", { type: "geojson", data: emptyCollection });
@@ -299,8 +274,23 @@ export default function ScotlandMap() {
       const qWords = params.get("words");
       const qLat = params.get("lat");
       const qLng = params.get("lng");
-      if (qWords) void fetchWords(qWords);
-      else if (qLat && qLng) void fetchSquare(Number(qLat), Number(qLng));
+      if (qWords) {
+        setQuery(qWords);
+        void (async () => {
+          try {
+            const encoded = encodeURIComponent(qWords);
+            const response = await apiFetch(
+              `/square?words=${encoded}&scenario=full_agr`,
+            );
+            applyResult((await response.json()) as SquareResponse);
+            setApiOk(true);
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Lookup failed");
+          }
+        })();
+      } else if (qLat && qLng) {
+        void fetchSquare(Number(qLat), Number(qLng));
+      }
     });
 
     map.on("click", (event) => {
@@ -337,36 +327,25 @@ export default function ScotlandMap() {
 
     if (!showHeatmap) {
       setVis("none");
-      setLayerNote(null);
       return;
     }
 
     let cancelled = false;
     setLayerBusy(true);
-    void apiJson<
-      GeoJSON.FeatureCollection & {
-        meta?: { feature_count?: number; agr_min_gbp?: number; agr_max_gbp?: number };
-      }
-    >(`/layers/councils-agr?scenario=${scenario}`)
+    void apiJson<GeoJSON.FeatureCollection>(
+      `/layers/councils-agr?scenario=${scenario}`,
+    )
       .then((data) => {
         if (cancelled) return;
         const src = map.getSource("council-agr") as GeoJSONSource | undefined;
         if (!src) throw new Error("Map heat source missing — refresh the page");
         src.setData(data);
         setVis("visible");
-        const n = data.meta?.feature_count ?? data.features?.length ?? 0;
-        const lo = data.meta?.agr_min_gbp;
-        const hi = data.meta?.agr_max_gbp;
-        setLayerNote(
-          lo != null && hi != null
-            ? `Heat map: ${n} councils · plot AGR £${Math.round(lo).toLocaleString()}–£${Math.round(hi).toLocaleString()}/yr`
-            : `Heat map: ${n} councils`,
-        );
-        setApiStatus({ ok: true, message: "via same-origin proxy" });
+        setApiOk(true);
       })
       .catch((err: Error) => {
         setError(err.message);
-        setApiStatus({ ok: false, message: err.message });
+        setApiOk(false);
       })
       .finally(() => {
         if (!cancelled) setLayerBusy(false);
@@ -403,32 +382,21 @@ export default function ScotlandMap() {
       if (!b) return;
       if (map.getZoom() < 11) {
         setVis("none");
-        setLayerNote("Zoom in to 11+ to paint W3W cells with AGR.");
         return;
       }
       setLayerBusy(true);
       const path =
         `/layers/w3w-grid?south=${b.getSouth()}&west=${b.getWest()}` +
         `&north=${b.getNorth()}&east=${b.getEast()}&scenario=${scenario}&max_cells=600`;
-      void apiJson<
-        GeoJSON.FeatureCollection & {
-          meta?: { cell_count?: number; sampled?: boolean };
-        }
-      >(path)
+      void apiJson<GeoJSON.FeatureCollection>(path)
         .then((data) => {
           if (cancelled) return;
           (map.getSource("w3w-agr-grid") as GeoJSONSource)?.setData(data);
           setVis("visible");
-          const n = data.meta?.cell_count ?? 0;
-          setLayerNote(
-            data.meta?.sampled
-              ? `Cell grid: ${n} W3W squares (sampled — zoom closer for denser fill)`
-              : `Cell grid: ${n} W3W squares with AGR`,
-          );
         })
         .catch((err: Error) => {
           setError(err.message);
-          setApiStatus({ ok: false, message: err.message });
+          setApiOk(false);
         })
         .finally(() => {
           if (!cancelled) setLayerBusy(false);
@@ -449,10 +417,6 @@ export default function ScotlandMap() {
     };
   }, [mapReady, showCellGrid, scenario]);
 
-  const reestimateCurrent = () => {
-    if (result) void fetchSquare(result.square.lat, result.square.lng);
-  };
-
   const downloadReport = async (format: "markdown" | "json") => {
     if (!result) return;
     setReportDownloading(true);
@@ -460,9 +424,7 @@ export default function ScotlandMap() {
     try {
       const path =
         `/assessment/report?lat=${result.square.lat}&lng=${result.square.lng}` +
-        `&scenario=${scenario}&format=${format === "json" ? "json" : "markdown"}` +
-        (includeSales ? "&include_sales_context=true" : "") +
-        sensitivityQuery();
+        `&scenario=${scenario}&format=${format === "json" ? "json" : "markdown"}`;
       const response = await apiFetch(path);
       const base = `scotland-agr-${result.square.lat.toFixed(5)}_${result.square.lng.toFixed(5)}`;
       if (format === "json") {
@@ -496,178 +458,80 @@ export default function ScotlandMap() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand">
-          <h1>Scotland AGR Map</h1>
-          <p>
-            Heat map of Annual Ground Rent across Scotland — click any place for a
-            What3Words 3×3 m cell estimate.
-          </p>
-        </div>
+        <header className="brand brand-compact">
+          <div className="brand-row">
+            <h1>Scotland AGR</h1>
+            <nav className="brand-nav">
+              <a href="/methodology">About</a>
+              <a href="https://www.slrg.scot" target="_blank" rel="noreferrer">
+                SLRG
+              </a>
+            </nav>
+          </div>
+        </header>
 
-        <div
-          className={`api-banner ${apiStatus?.ok === false ? "api-banner-bad" : apiStatus?.ok ? "api-banner-ok" : ""}`}
-        >
-          {apiStatus == null
-            ? "Checking API…"
-            : apiStatus.ok
-              ? `Connected · ${apiStatus.message}`
-              : apiStatus.message}
-          {apiStatus?.ok === false && (
+        {apiOk === false && (
+          <div className="api-banner api-banner-bad">
+            <span>API offline — start backend on port 8000</span>
             <button
               type="button"
               className="api-retry"
-              onClick={() => void pingApi().then(setApiStatus)}
+              onClick={() => void pingApi().then((s) => setApiOk(s.ok))}
             >
               Retry
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="sidebar-scroll">
-          <div className="panel">
-            <h2>Layers</h2>
-            <p className="meta" style={{ marginTop: 0 }}>
-              {layerBusy ? "Loading layer data…" : layerNote ?? "Turn layers on below."}
-            </p>
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={showHeatmap}
-                onChange={(e) => setShowHeatmap(e.target.checked)}
-              />
-              <strong>Scotland heat map</strong> (council plot AGR)
+          <div className="search-block">
+            <label className="sr-only" htmlFor="place-query">
+              Postcode or What3Words
             </label>
-            <label className="checkbox-row">
+            <div className="search-row">
               <input
-                type="checkbox"
-                checked={showCellGrid}
-                onChange={(e) => setShowCellGrid(e.target.checked)}
+                id="place-query"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void runSearch();
+                }}
+                placeholder="Postcode or word.word.word"
+                disabled={loading || apiOk === false}
               />
-              <strong>W3W cell grid</strong> (zoom in to 11+)
-            </label>
-            <div className="layer-legend">
-              <span>Lower rent</span>
-              <span className="legend-bar" />
-              <span>Higher rent</span>
+              <button
+                type="button"
+                className="primary"
+                disabled={loading || apiOk === false || !query.trim()}
+                onClick={() => void runSearch()}
+              >
+                {loading ? "…" : "Go"}
+              </button>
+            </div>
+            <div className="layer-chips">
+              <button
+                type="button"
+                className={showHeatmap ? "chip active" : "chip"}
+                onClick={() => setShowHeatmap((v) => !v)}
+                title="Council-level AGR heat map"
+              >
+                Heat map{layerBusy && showHeatmap ? "…" : ""}
+              </button>
+              <button
+                type="button"
+                className={showCellGrid ? "chip active" : "chip"}
+                onClick={() => setShowCellGrid((v) => !v)}
+                title="W3W cells when zoomed in (level 11+)"
+              >
+                Cell grid
+              </button>
             </div>
           </div>
 
-          <div className="panel find-place">
-            <details open>
-              <summary>Find a place</summary>
-              <div className="field" style={{ marginTop: "0.75rem" }}>
-                <label htmlFor="postcode">Postcode</label>
-                <input
-                  id="postcode"
-                  value={postcode}
-                  onChange={(event) => setPostcode(event.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") void fetchPostcode(postcode);
-                  }}
-                />
-              </div>
-              <button
-                className="primary"
-                disabled={loading || apiStatus?.ok === false}
-                onClick={() => void fetchPostcode(postcode)}
-              >
-                {loading ? "Looking up…" : "Search postcode"}
-              </button>
-
-              <div className="field" style={{ marginTop: "0.85rem" }}>
-                <label htmlFor="words">What3Words</label>
-                <input
-                  id="words"
-                  value={words}
-                  onChange={(event) => setWords(event.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") void fetchWords(words);
-                  }}
-                  placeholder="filled.count.soap"
-                />
-              </div>
-              <button
-                className="primary"
-                disabled={loading || apiStatus?.ok === false}
-                onClick={() => void fetchWords(words)}
-                style={{ background: "#001a3a" }}
-              >
-                {loading ? "Resolving…" : "Search What3Words"}
-              </button>
-              <button
-                type="button"
-                className="scenario-tab"
-                style={{ marginTop: "0.5rem" }}
-                disabled={loading || apiStatus?.ok === false}
-                onClick={() => {
-                  mapRef.current?.flyTo({ center: [-4.2, 56.8], zoom: 6.2 });
-                  void fetchSquare(55.9533, -3.1883);
-                }}
-              >
-                Demo: Edinburgh
-              </button>
-            </details>
-          </div>
-
-          <div className="panel">
-            <details>
-              <summary style={{ fontWeight: 600, cursor: "pointer", color: "var(--slrg-navy)" }}>
-                Assumptions (research)
-              </summary>
-              <div className="field" style={{ marginTop: "0.5rem" }}>
-                <label htmlFor="yield">Yield: {yieldPct}%</label>
-                <input
-                  id="yield"
-                  type="range"
-                  min={3}
-                  max={8}
-                  step={0.5}
-                  value={yieldPct}
-                  onChange={(e) => setYieldPct(Number(e.target.value))}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="urban">Urban Pickard: {urbanPickardPct}%</label>
-                <input
-                  id="urban"
-                  type="range"
-                  min={40}
-                  max={100}
-                  step={5}
-                  value={urbanPickardPct}
-                  onChange={(e) => setUrbanPickardPct(Number(e.target.value))}
-                />
-              </div>
-              <button
-                className="primary"
-                type="button"
-                disabled={loading || !result}
-                onClick={reestimateCurrent}
-              >
-                Re-estimate selection
-              </button>
-              <label className="checkbox-row">
-                <input
-                  type="checkbox"
-                  checked={includeSales}
-                  onChange={(e) => setIncludeSales(e.target.checked)}
-                />
-                Sales cross-check (research)
-              </label>
-            </details>
-          </div>
-
-          <div className="panel">
-            <h2>Selection</h2>
-            {error && (
-              <p className="meta" style={{ color: "#c8102e" }}>
-                {error}
-              </p>
-            )}
+          <div className="result-block">
+            {error && <p className="error-line">{error}</p>}
             {!error && !result && (
-              <p className="idle-hint">
-                The coloured map is council-level AGR. Click anywhere for a cell estimate.
-              </p>
+              <p className="idle-hint">Click the map to estimate Annual Ground Rent for a place.</p>
             )}
             {result && (
               <AgrBreakdown
@@ -679,41 +543,19 @@ export default function ScotlandMap() {
                 lat={result.square.lat}
                 lng={result.square.lng}
                 what3words={result.what3words}
-                w3wConfigured={result.w3w_configured}
-                salesContext={result.sales_context}
                 onDownloadReport={(fmt) => void downloadReport(fmt)}
                 reportDownloading={reportDownloading}
               />
             )}
           </div>
         </div>
-
-        <div className="footer-links">
-          <a href="https://www.slrg.scot" target="_blank" rel="noreferrer">
-            SLRG
-          </a>
-          {" · "}
-          <a href="/methodology">Methodology</a>
-          {signoffStatus && (
-            <>
-              {" · "}
-              <span className={`signoff-badge signoff-${signoffStatus}`}>
-                {signoffStatus}
-              </span>
-            </>
-          )}
-        </div>
       </aside>
 
       <div className="map-wrap">
         <div id="map" ref={mapContainer} />
-        <div className="map-hint">
-          {apiStatus?.ok === false
-            ? "API offline — start backend on port 8000"
-            : showHeatmap
-              ? "Scotland AGR heat map · click a place for a W3W cell"
-              : "Heat map off · enable “Scotland heat map” in Layers"}
-        </div>
+        {!result && apiOk !== false && (
+          <div className="map-hint">Click any place for an estimate</div>
+        )}
       </div>
     </div>
   );

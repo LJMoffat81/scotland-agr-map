@@ -106,6 +106,9 @@ export default function MethodologyContent() {
 
   return (
     <main className="methodology-page">
+      <p className="meta" style={{ marginBottom: "0.5rem" }}>
+        <a href="/">← Map</a>
+      </p>
       <h1>Methodology</h1>
       <p>
         Scotland AGR Map estimates Annual Ground Rent (AGR) for each What3Words
