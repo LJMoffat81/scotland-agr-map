@@ -1,0 +1,43 @@
+{
+  "generated_for": "scotland-agr-map context layers",
+  "licence": "OGL / Scottish Government open statistics (derived tables)",
+  "sources": {
+    "simd": "Scottish Index of Multiple Deprivation 2020v2 — local authority shares of data zones in the 20% most deprived nationally (SG published analysis)",
+    "population": "NRS mid-year population estimates (Scotland, council areas) — rounded for map display",
+    "note": "Joined to council polygons for choropleth context; not a substitute for data-zone SIMD maps."
+  },
+  "councils": {
+    "S12000033": { "name": "City of Aberdeen", "population": 227430, "simd_pct_20most_deprived": 10.5, "simd_rank_note": "mid" },
+    "S12000034": { "name": "Aberdeenshire", "population": 263750, "simd_pct_20most_deprived": 2.1, "simd_rank_note": "low" },
+    "S12000041": { "name": "Angus", "population": 114820, "simd_pct_20most_deprived": 5.4, "simd_rank_note": "low-mid" },
+    "S12000035": { "name": "Argyll and Bute", "population": 86220, "simd_pct_20most_deprived": 4.8, "simd_rank_note": "low-mid" },
+    "S12000005": { "name": "Clackmannanshire", "population": 51540, "simd_pct_20most_deprived": 24.1, "simd_rank_note": "high" },
+    "S12000006": { "name": "Dumfries and Galloway", "population": 148290, "simd_pct_20most_deprived": 7.2, "simd_rank_note": "mid" },
+    "S12000042": { "name": "City of Dundee", "population": 148210, "simd_pct_20most_deprived": 37.8, "simd_rank_note": "very high" },
+    "S12000008": { "name": "East Ayrshire", "population": 120240, "simd_pct_20most_deprived": 28.6, "simd_rank_note": "high" },
+    "S12000045": { "name": "East Dunbartonshire", "population": 108640, "simd_pct_20most_deprived": 3.2, "simd_rank_note": "low" },
+    "S12000010": { "name": "East Lothian", "population": 112300, "simd_pct_20most_deprived": 4.1, "simd_rank_note": "low" },
+    "S12000011": { "name": "East Renfrewshire", "population": 97480, "simd_pct_20most_deprived": 2.8, "simd_rank_note": "low" },
+    "S12000036": { "name": "City of Edinburgh", "population": 526470, "simd_pct_20most_deprived": 11.8, "simd_rank_note": "mid" },
+    "S12000014": { "name": "Falkirk", "population": 160340, "simd_pct_20most_deprived": 16.4, "simd_rank_note": "mid-high" },
+    "S12000047": { "name": "Fife", "population": 371910, "simd_pct_20most_deprived": 16.9, "simd_rank_note": "mid-high" },
+    "S12000049": { "name": "City of Glasgow", "population": 635130, "simd_pct_20most_deprived": 44.9, "simd_rank_note": "very high" },
+    "S12000017": { "name": "Highland", "population": 235540, "simd_pct_20most_deprived": 6.5, "simd_rank_note": "low-mid" },
+    "S12000018": { "name": "Inverclyde", "population": 76330, "simd_pct_20most_deprived": 44.2, "simd_rank_note": "very high" },
+    "S12000019": { "name": "Midlothian", "population": 97020, "simd_pct_20most_deprived": 8.7, "simd_rank_note": "mid" },
+    "S12000020": { "name": "Moray", "population": 94150, "simd_pct_20most_deprived": 3.9, "simd_rank_note": "low" },
+    "S12000013": { "name": "Na h-Eileanan Siar", "population": 26120, "simd_pct_20most_deprived": 0.0, "simd_rank_note": "none in 20%" },
+    "S12000021": { "name": "North Ayrshire", "population": 133340, "simd_pct_20most_deprived": 32.1, "simd_rank_note": "high" },
+    "S12000050": { "name": "North Lanarkshire", "population": 340930, "simd_pct_20most_deprived": 33.4, "simd_rank_note": "high" },
+    "S12000023": { "name": "Orkney Islands", "population": 22540, "simd_pct_20most_deprived": 0.0, "simd_rank_note": "none in 20%" },
+    "S12000048": { "name": "Perth and Kinross", "population": 153810, "simd_pct_20most_deprived": 4.3, "simd_rank_note": "low" },
+    "S12000038": { "name": "Renfrewshire", "population": 179390, "simd_pct_20most_deprived": 24.8, "simd_rank_note": "high" },
+    "S12000026": { "name": "Scottish Borders", "population": 116020, "simd_pct_20most_deprived": 5.1, "simd_rank_note": "low-mid" },
+    "S12000027": { "name": "Shetland Islands", "population": 22920, "simd_pct_20most_deprived": 0.0, "simd_rank_note": "none in 20%" },
+    "S12000028": { "name": "South Ayrshire", "population": 111390, "simd_pct_20most_deprived": 17.2, "simd_rank_note": "mid-high" },
+    "S12000029": { "name": "South Lanarkshire", "population": 322630, "simd_pct_20most_deprived": 22.5, "simd_rank_note": "high" },
+    "S12000030": { "name": "Stirling", "population": 93410, "simd_pct_20most_deprived": 7.8, "simd_rank_note": "mid" },
+    "S12000039": { "name": "West Dunbartonshire", "population": 88080, "simd_pct_20most_deprived": 39.6, "simd_rank_note": "very high" },
+    "S12000040": { "name": "West Lothian", "population": 185580, "simd_pct_20most_deprived": 12.3, "simd_rank_note": "mid" }
+  }
+}
