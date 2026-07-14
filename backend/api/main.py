@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from api.cors import cors_settings
 from agr.engine import breakdown_to_dict, calculate_square_agr
 from agr.config import load_config
+from agr.overrides import merge_config_overrides
 from spatial.grid import snap_to_w3w_grid
 from spatial.w3w import (
     W3WNotConfiguredError,
@@ -25,7 +26,7 @@ from validation.glasgow_ward_18 import run_validation
 app = FastAPI(
     title="Scotland AGR Map API",
     description="Annual Ground Rent estimates for What3Words 3x3m squares in Scotland",
-    version="0.5.1",
+    version="0.5.2",
 )
 
 _allowed_origins, _allowed_origin_regex = cors_settings()
@@ -55,16 +56,34 @@ def _scotland_bounds_check(lat: float, lng: float) -> None:
         raise HTTPException(status_code=400, detail="Coordinates appear to be outside Scotland.")
 
 
+def _parse_sensitivity(
+    yield_rate: float | None,
+    urban_speculation: float | None,
+    farmland_factor: float | None,
+) -> dict:
+    base = load_config()
+    try:
+        return merge_config_overrides(
+            base,
+            yield_rate=yield_rate,
+            urban_speculation_discount=urban_speculation,
+            farmland_market_to_productive=farmland_factor,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 def _square_response(
     lat: float,
     lng: float,
     scenario: str | None = None,
     *,
     words_hint: str | None = None,
+    config: dict | None = None,
 ) -> dict:
     _scotland_bounds_check(lat, lng)
     square = snap_to_w3w_grid(lat, lng)
-    breakdown = calculate_square_agr(square, scenario=scenario)
+    breakdown = calculate_square_agr(square, scenario=scenario, config=config)
 
     # Prefer caller-supplied words; otherwise reverse-geocode snapped cell if key present
     what3words = words_hint
@@ -107,7 +126,7 @@ def health() -> dict:
     return {
         "status": "ok",
         "service": "scotland-agr-map-api",
-        "version": "0.5.1",
+        "version": "0.5.2",
         "w3w_configured": w3w_is_configured(),
         "economist_signoff_status": signoff.get("status", "unknown"),
     }
@@ -152,6 +171,18 @@ def get_square(
         default="full_agr",
         description="Policy scenario: full_agr, replace_income_tax, revenue_neutral",
     ),
+    yield_rate: float | None = Query(
+        default=None,
+        description="Sensitivity: rentalisation yield (0.02–0.12). Default from config.",
+    ),
+    urban_speculation: float | None = Query(
+        default=None,
+        description="Sensitivity: Pickard urban factor (0.3–1.0). Default 0.70.",
+    ),
+    farmland_factor: float | None = Query(
+        default=None,
+        description="Sensitivity: Pickard farmland productive factor (0.1–1.0). Default 0.20.",
+    ),
 ) -> dict:
     words_hint: str | None = None
     if words:
@@ -173,8 +204,11 @@ def get_square(
             detail="Provide lat and lng, or words (requires W3W_API_KEY).",
         )
 
+    config = _parse_sensitivity(yield_rate, urban_speculation, farmland_factor)
     try:
-        return _square_response(lat, lng, scenario=scenario, words_hint=words_hint)
+        return _square_response(
+            lat, lng, scenario=scenario, words_hint=words_hint, config=config
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -186,6 +220,9 @@ def get_postcode_square(
         default="full_agr",
         description="Policy scenario: full_agr, replace_income_tax, revenue_neutral",
     ),
+    yield_rate: float | None = Query(default=None),
+    urban_speculation: float | None = Query(default=None),
+    farmland_factor: float | None = Query(default=None),
 ) -> dict:
     normalised = postcode.replace(" ", "").upper()
     if len(normalised) < 5 or len(normalised) > 7:
@@ -211,8 +248,9 @@ def get_postcode_square(
     lat = result["latitude"]
     lng = result["longitude"]
 
+    config = _parse_sensitivity(yield_rate, urban_speculation, farmland_factor)
     try:
-        square_payload = _square_response(lat, lng, scenario=scenario)
+        square_payload = _square_response(lat, lng, scenario=scenario, config=config)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except HTTPException as exc:

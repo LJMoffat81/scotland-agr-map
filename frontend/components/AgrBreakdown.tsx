@@ -55,6 +55,7 @@ export type AgrResult = {
   notional_plot_sqm?: number;
   pickard_factor?: number;
   pickard_label?: string;
+  sensitivity_overrides?: Record<string, number>;
 };
 
 type Props = {
@@ -256,6 +257,15 @@ export default function AgrBreakdown({
               <strong>Confidence:</strong> {agr.confidence} · {agr.method}
             </li>
           </ul>
+          {agr.sensitivity_overrides &&
+            Object.keys(agr.sensitivity_overrides).length > 0 && (
+              <p className="meta tight sensitivity-note">
+                Research overrides active:{" "}
+                {Object.entries(agr.sensitivity_overrides)
+                  .map(([k, v]) => `${k}=${v}`)
+                  .join(", ")}
+              </p>
+            )}
           <p className="meta tight">
             Research estimate for education — not an official tax bill. National rent-pool
             figures (Sandilands) are separate from this map residual.

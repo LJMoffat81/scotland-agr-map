@@ -89,6 +89,21 @@ export default function ScotlandMap() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SquareResponse | null>(null);
   const [signoffStatus, setSignoffStatus] = useState<string | null>(null);
+  // Sensitivity (research) — defaults match agr.yaml signed-off values
+  const [yieldPct, setYieldPct] = useState(5);
+  const [urbanPickardPct, setUrbanPickardPct] = useState(70);
+  const [wardStory, setWardStory] = useState<string | null>(null);
+
+  const sensitivityQuery = useCallback(() => {
+    const params = new URLSearchParams();
+    const y = yieldPct / 100;
+    const u = urbanPickardPct / 100;
+    // Only send when different from defaults so base case stays clean
+    if (Math.abs(y - 0.05) > 1e-9) params.set("yield_rate", y.toFixed(4));
+    if (Math.abs(u - 0.7) > 1e-9) params.set("urban_speculation", u.toFixed(4));
+    const s = params.toString();
+    return s ? `&${s}` : "";
+  }, [yieldPct, urbanPickardPct]);
 
   const applyResult = useCallback((payload: SquareResponse) => {
     setResult(payload);
@@ -133,7 +148,7 @@ export default function ScotlandMap() {
       const sc = nextScenario ?? scenario;
       try {
         const response = await fetch(
-          `${API_URL}/square?lat=${nextLat}&lng=${nextLng}&scenario=${sc}`,
+          `${API_URL}/square?lat=${nextLat}&lng=${nextLng}&scenario=${sc}${sensitivityQuery()}`,
         );
         if (!response.ok) {
           const payload = await response.json();
@@ -146,7 +161,7 @@ export default function ScotlandMap() {
         setLoading(false);
       }
     },
-    [applyResult, scenario],
+    [applyResult, scenario, sensitivityQuery],
   );
 
   const fetchPostcode = async (rawPostcode: string) => {
@@ -155,7 +170,7 @@ export default function ScotlandMap() {
     try {
       const encoded = encodeURIComponent(rawPostcode.trim());
       const response = await fetch(
-        `${API_URL}/postcode/${encoded}?scenario=${scenario}`,
+        `${API_URL}/postcode/${encoded}?scenario=${scenario}${sensitivityQuery()}`,
       );
       if (!response.ok) {
         const payload = await response.json();
@@ -175,7 +190,7 @@ export default function ScotlandMap() {
     try {
       const encoded = encodeURIComponent(rawWords.trim());
       const response = await fetch(
-        `${API_URL}/square?words=${encoded}&scenario=${scenario}`,
+        `${API_URL}/square?words=${encoded}&scenario=${scenario}${sensitivityQuery()}`,
       );
       if (!response.ok) {
         const payload = await response.json();
@@ -308,8 +323,36 @@ export default function ScotlandMap() {
 
   const goWard18 = () => {
     setShowWard18(true);
+    setWardStory(
+      "Glasgow Ward 18 (East Centre) is the map’s featured validation area — residual AGR samples inside a known ward for SLRG-style place-based checks.",
+    );
+    void fetch(`${API_URL}/validation/glasgow-ward-18?samples=8`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then(
+        (
+          payload: {
+            agr_mean_gbp?: number;
+            agr_min_gbp?: number;
+            agr_max_gbp?: number;
+            samples_in_ward?: number;
+            samples_tested?: number;
+          } | null,
+        ) => {
+          if (!payload?.agr_mean_gbp) return;
+          setWardStory(
+            `Glasgow Ward 18 (East Centre) validation: ${payload.samples_in_ward}/${payload.samples_tested} samples in-ward · cell AGR about £${payload.agr_min_gbp?.toFixed(0)}–£${payload.agr_max_gbp?.toFixed(0)}/yr (mean £${payload.agr_mean_gbp.toFixed(0)}). Featured case study for place-based residual checks.`,
+          );
+        },
+      )
+      .catch(() => undefined);
     // East Centre, Glasgow approximate centroid
     void fetchSquare(55.857, -4.198);
+  };
+
+  const reestimateCurrent = () => {
+    if (result) {
+      void fetchSquare(result.square.lat, result.square.lng);
+    }
   };
 
   return (
@@ -448,12 +491,79 @@ export default function ScotlandMap() {
           </div>
 
           <div className="panel">
+            <details>
+              <summary style={{ fontWeight: 600, cursor: "pointer", color: "var(--slrg-navy)" }}>
+                Explore assumptions (research)
+              </summary>
+              <p className="meta" style={{ marginTop: "0.5rem" }}>
+                Signed-off defaults: yield 5%, urban Pickard 70%. Move sliders then re-estimate.
+              </p>
+              <div className="field">
+                <label htmlFor="yield">
+                  Rentalisation yield: {yieldPct}%
+                </label>
+                <input
+                  id="yield"
+                  type="range"
+                  min={3}
+                  max={8}
+                  step={0.5}
+                  value={yieldPct}
+                  onChange={(e) => setYieldPct(Number(e.target.value))}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="urban">
+                  Urban economic factor (Pickard): {urbanPickardPct}%
+                </label>
+                <input
+                  id="urban"
+                  type="range"
+                  min={40}
+                  max={100}
+                  step={5}
+                  value={urbanPickardPct}
+                  onChange={(e) => setUrbanPickardPct(Number(e.target.value))}
+                />
+              </div>
+              <button
+                className="primary"
+                type="button"
+                disabled={loading || !result}
+                onClick={reestimateCurrent}
+              >
+                Re-estimate with assumptions
+              </button>
+              <button
+                type="button"
+                className="scenario-tab"
+                style={{ marginTop: "0.45rem" }}
+                onClick={() => {
+                  setYieldPct(5);
+                  setUrbanPickardPct(70);
+                }}
+              >
+                Reset to defaults (5% / 70%)
+              </button>
+            </details>
+          </div>
+
+          {wardStory && (
+            <div className="panel ward-story">
+              <h2>Ward 18</h2>
+              <p className="meta" style={{ margin: 0 }}>
+                {wardStory}
+              </p>
+            </div>
+          )}
+
+          <div className="panel">
             <h2>Result</h2>
             {error && <p className="meta">{error}</p>}
             {!error && !result && (
               <p className="idle-hint">
                 Click the map or use Explore above. You&apos;ll get a plain £/year estimate
-                and optional detail on how it was calculated.
+                on a What3Words 3×3 m cell, with optional detail on how it was calculated.
               </p>
             )}
             {result && (

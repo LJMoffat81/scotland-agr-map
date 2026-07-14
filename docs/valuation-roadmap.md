@@ -29,6 +29,8 @@ Martin Adams / [Unitism](https://unitism.com/) does not change residual maths; i
 | Phase | Goal | Data need | Output |
 |-------|------|-----------|--------|
 | **A** (done) | Valuer residual DRC + lineage | HPI, rebuild config | Grid / plot / parcel roll lines |
+| **A2** (done) | Clarity UI + W3W identity | — | Plot headline, W3W cell line, deep links |
+| **A3** (done) | Trust: sensitivity + Ward 18 story | API overrides | Yield / Pickard sliders; Ward 18 validation blurb |
 | **B** | Ward 18 pilot sales residual | ROS/price-paid + parcels + attributes | Compare OpenAVMKit land vs current residual |
 | **C** | Council pilot mass appraisal | Clean sales, land use, building footprints | Neighbourhood land surface |
 | **D** | Multi-council roll prototype | Repeatable pipeline | Ratio studies + map layers |

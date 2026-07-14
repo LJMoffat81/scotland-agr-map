@@ -59,6 +59,7 @@ class AgrBreakdown:
     pickard_factor: float
     pickard_label: str
     assessment: dict = field(default_factory=dict)
+    sensitivity_overrides: dict = field(default_factory=dict)
 
 
 def _equal_share_fields(economic_rent: float, config: dict) -> tuple[bool, float | None, float | None, int | None]:
@@ -76,11 +77,16 @@ def _equal_share_fields(economic_rent: float, config: dict) -> tuple[bool, float
     return True, round(per_person, 2), (round(fraction, 6) if fraction is not None else None), population
 
 
-def calculate_square_agr(square: GridSquare, scenario: str | None = None) -> AgrBreakdown:
-    config = load_config()
+def calculate_square_agr(
+    square: GridSquare,
+    scenario: str | None = None,
+    config: dict | None = None,
+) -> AgrBreakdown:
+    config = config if config is not None else load_config()
     per_square = config["per_square"]
     integrity = config.get("integrity") or {}
     active_scenario = resolve_active_scenario(scenario)
+    sensitivity = dict(config.get("_sensitivity_overrides") or {})
 
     council = lookup_council(square.lat, square.lng)
     parcel = lookup_parcel(square.lat, square.lng)
@@ -124,6 +130,8 @@ def calculate_square_agr(square: GridSquare, scenario: str | None = None) -> Agr
         "Smith/Wightman: charge is on ground-rent of the site after stripping buildings (DRC).",
         "Pickard: economic rent base after removing speculative capital premium.",
     ]
+    if sensitivity:
+        notes.append(f"Sensitivity overrides active (research): {sensitivity}")
     if eq_enabled and eq_per_person is not None and eq_fraction is not None:
         notes.append(
             f"Ogilvie/Paine/Unitism equal-share (national pool): one Scot ≈ £{eq_per_person:,.0f}/year; "
@@ -194,6 +202,7 @@ def calculate_square_agr(square: GridSquare, scenario: str | None = None) -> Agr
         pickard_factor=assessment.pickard_factor,
         pickard_label=assessment.pickard_label,
         assessment=assessment.to_dict(),
+        sensitivity_overrides=sensitivity,
     )
 
 

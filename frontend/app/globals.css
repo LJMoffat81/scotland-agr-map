@@ -305,6 +305,18 @@ button.primary:disabled {
   color: var(--slrg-muted);
 }
 
+.ward-story {
+  border-left: 3px solid var(--slrg-gold);
+}
+
+.sensitivity-note {
+  color: #8a6d1b;
+}
+
+input[type="range"] {
+  width: 100%;
+}
+
 .breakdown-table {
   width: 100%;
   border-collapse: collapse;
