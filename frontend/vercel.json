@@ -9,7 +9,7 @@
       "headers": [
         {
           "key": "X-Content-Type-Options",
-          "nosniff": true
+          "value": "nosniff"
         }
       ]
     }
