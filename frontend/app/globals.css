@@ -305,10 +305,6 @@ button.primary:disabled {
   color: var(--slrg-muted);
 }
 
-.ward-story {
-  border-left: 3px solid var(--slrg-gold);
-}
-
 .sensitivity-note {
   color: #8a6d1b;
 }
@@ -448,15 +444,15 @@ input[type="range"] {
   left: 50%;
   bottom: 1.25rem;
   transform: translateX(-50%);
-  background: rgba(0, 26, 58, 0.9);
+  background: rgba(0, 26, 58, 0.92);
   color: white;
-  padding: 0.65rem 1rem;
+  padding: 0.65rem 1.1rem;
   border-radius: 999px;
   font-size: 0.88rem;
   pointer-events: none;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   z-index: 2;
-  max-width: 90%;
+  max-width: min(92%, 420px);
   text-align: center;
 }
 

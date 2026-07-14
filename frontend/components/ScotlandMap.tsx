@@ -31,80 +31,70 @@ const emptyCollection: GeoJSON.FeatureCollection = {
   features: [],
 };
 
-async function loadBoundaryLayer(
-  map: Map,
-  sourceId: string,
-  fillId: string,
-  lineId: string,
-  url: string,
-  fillColor: string,
-) {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to load ${sourceId}`);
-  }
-  const data = (await response.json()) as GeoJSON.FeatureCollection;
+/** Plot £/year breaks tuned to current residual range (~£40–£7k). */
+const PLOT_AGR_COLOR: maplibregl.ExpressionSpecification = [
+  "interpolate",
+  ["linear"],
+  ["coalesce", ["get", "annual_ground_rent_plot_gbp"], 0],
+  0,
+  "#ffffcc",
+  500,
+  "#c7e9b4",
+  1500,
+  "#7fcdbb",
+  3000,
+  "#41b6c4",
+  4500,
+  "#2c7fb8",
+  6500,
+  "#253494",
+];
 
-  if (!map.getSource(sourceId)) {
-    map.addSource(sourceId, { type: "geojson", data });
-    map.addLayer({
-      id: fillId,
-      type: "fill",
-      source: sourceId,
-      paint: { "fill-color": fillColor, "fill-opacity": 0.08 },
-    });
-    map.addLayer({
-      id: lineId,
-      type: "line",
-      source: sourceId,
-      paint: { "line-color": fillColor, "line-width": 1.5, "line-opacity": 0.7 },
-    });
-  } else {
-    (map.getSource(sourceId) as GeoJSONSource).setData(data);
-  }
-
-  map.setLayoutProperty(fillId, "visibility", "visible");
-  map.setLayoutProperty(lineId, "visibility", "visible");
-}
-
-function hideBoundaryLayer(map: Map, fillId: string, lineId: string) {
-  if (map.getLayer(fillId)) {
-    map.setLayoutProperty(fillId, "visibility", "none");
-  }
-  if (map.getLayer(lineId)) {
-    map.setLayoutProperty(lineId, "visibility", "none");
-  }
-}
+/** Cell £/year breaks for dense W3W grid. */
+const CELL_AGR_COLOR: maplibregl.ExpressionSpecification = [
+  "interpolate",
+  ["linear"],
+  ["coalesce", ["get", "annual_ground_rent_gbp"], 0],
+  0,
+  "#fff7ec",
+  40,
+  "#fee8c8",
+  100,
+  "#fdbb84",
+  180,
+  "#e34a33",
+  280,
+  "#b30000",
+];
 
 export default function ScotlandMap() {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
+  const [mapReady, setMapReady] = useState(false);
   const [lat, setLat] = useState("55.9533");
   const [lng, setLng] = useState("-3.1883");
   const [postcode, setPostcode] = useState("EH1 1YZ");
   const [words, setWords] = useState("filled.count.soap");
   const [scenario, setScenario] = useState<ScenarioId>("full_agr");
-  const [showCouncils, setShowCouncils] = useState(false);
-  const [showCouncilAgr, setShowCouncilAgr] = useState(true);
-  const [showW3wGrid, setShowW3wGrid] = useState(false);
-  const [showWard18, setShowWard18] = useState(false);
+  /** National heat map — on by default */
+  const [showHeatmap, setShowHeatmap] = useState(true);
+  /** Dense W3W cells in viewport */
+  const [showCellGrid, setShowCellGrid] = useState(false);
   const [layerBusy, setLayerBusy] = useState(false);
+  const [layerNote, setLayerNote] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SquareResponse | null>(null);
   const [signoffStatus, setSignoffStatus] = useState<string | null>(null);
-  // Sensitivity (research) — defaults match agr.yaml signed-off values
   const [yieldPct, setYieldPct] = useState(5);
   const [urbanPickardPct, setUrbanPickardPct] = useState(70);
-  const [wardStory, setWardStory] = useState<string | null>(null);
-  const [includeSales, setIncludeSales] = useState(true);
+  const [includeSales, setIncludeSales] = useState(false);
   const [reportDownloading, setReportDownloading] = useState(false);
 
   const sensitivityQuery = useCallback(() => {
     const params = new URLSearchParams();
     const y = yieldPct / 100;
     const u = urbanPickardPct / 100;
-    // Only send when different from defaults so base case stays clean
     if (Math.abs(y - 0.05) > 1e-9) params.set("yield_rate", y.toFixed(4));
     if (Math.abs(u - 0.7) > 1e-9) params.set("urban_speculation", u.toFixed(4));
     if (includeSales) params.set("include_sales_context", "true");
@@ -131,10 +121,15 @@ export default function ScotlandMap() {
           },
         ],
       });
-      map.flyTo({ center: [payload.square.lng, payload.square.lat], zoom: 16 });
+      // Pan to place but keep national heat map readable (don't slam to street zoom)
+      const z = map.getZoom();
+      map.flyTo({
+        center: [payload.square.lng, payload.square.lat],
+        zoom: z < 6.5 ? 7 : Math.min(z, 12),
+        essential: true,
+      });
     }
 
-    // Shareable deep link (lat/lng; W3W words when known)
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       url.searchParams.set("lat", payload.square.lat.toFixed(6));
@@ -215,17 +210,14 @@ export default function ScotlandMap() {
     void fetch(`${API_URL}/signoff`)
       .then((response) => (response.ok ? response.json() : null))
       .then((payload: { status?: string } | null) => {
-        if (payload?.status) {
-          setSignoffStatus(payload.status);
-        }
+        if (payload?.status) setSignoffStatus(payload.status);
       })
       .catch(() => undefined);
   }, []);
 
+  // Map init
   useEffect(() => {
-    if (!mapContainer.current || mapRef.current) {
-      return;
-    }
+    if (!mapContainer.current || mapRef.current) return;
 
     const map = new maplibregl.Map({
       container: mapContainer.current,
@@ -241,59 +233,29 @@ export default function ScotlandMap() {
         },
         layers: [{ id: "osm", type: "raster", source: "osm" }],
       },
-      center: [-4.2, 56.49],
-      zoom: 6,
+      center: [-4.2, 56.8],
+      zoom: 6.2,
     });
 
     map.addControl(new maplibregl.NavigationControl(), "top-right");
 
     map.on("load", () => {
-      map.addSource("selected-square", { type: "geojson", data: emptyCollection });
-      map.addLayer({
-        id: "selected-square-fill",
-        type: "fill",
-        source: "selected-square",
-        paint: { "fill-color": "#c8102e", "fill-opacity": 0.25 },
-      });
-      map.addLayer({
-        id: "selected-square-outline",
-        type: "line",
-        source: "selected-square",
-        paint: { "line-color": "#c8102e", "line-width": 2 },
-      });
-
-      // AGR data layers (empty until toggled / fetched)
+      // Heat map under selection marker
       map.addSource("council-agr", { type: "geojson", data: emptyCollection });
       map.addLayer({
         id: "council-agr-fill",
         type: "fill",
         source: "council-agr",
-        layout: { visibility: "none" },
         paint: {
-          "fill-color": [
-            "interpolate",
-            ["linear"],
-            ["coalesce", ["get", "annual_ground_rent_plot_gbp"], 0],
-            0,
-            "#f7fbff",
-            2000,
-            "#c6dbef",
-            5000,
-            "#6baed6",
-            10000,
-            "#2171b5",
-            20000,
-            "#08306b",
-          ],
-          "fill-opacity": 0.55,
+          "fill-color": PLOT_AGR_COLOR,
+          "fill-opacity": 0.72,
         },
       });
       map.addLayer({
         id: "council-agr-line",
         type: "line",
         source: "council-agr",
-        layout: { visibility: "none" },
-        paint: { "line-color": "#001a3a", "line-width": 0.8, "line-opacity": 0.5 },
+        paint: { "line-color": "#0c2c84", "line-width": 1.1, "line-opacity": 0.65 },
       });
 
       map.addSource("w3w-agr-grid", { type: "geojson", data: emptyCollection });
@@ -303,22 +265,8 @@ export default function ScotlandMap() {
         source: "w3w-agr-grid",
         layout: { visibility: "none" },
         paint: {
-          "fill-color": [
-            "interpolate",
-            ["linear"],
-            ["coalesce", ["get", "annual_ground_rent_gbp"], 0],
-            0,
-            "#fff5f0",
-            50,
-            "#fcbba1",
-            150,
-            "#fb6a4a",
-            300,
-            "#cb181d",
-            600,
-            "#67000d",
-          ],
-          "fill-opacity": 0.65,
+          "fill-color": CELL_AGR_COLOR,
+          "fill-opacity": 0.7,
         },
       });
       map.addLayer({
@@ -326,27 +274,38 @@ export default function ScotlandMap() {
         type: "line",
         source: "w3w-agr-grid",
         layout: { visibility: "none" },
-        paint: { "line-color": "#67000d", "line-width": 0.3, "line-opacity": 0.35 },
+        paint: { "line-color": "#7f0000", "line-width": 0.4, "line-opacity": 0.4 },
       });
 
-      // Deep link: prefer W3W words, else lat/lng
+      map.addSource("selected-square", { type: "geojson", data: emptyCollection });
+      map.addLayer({
+        id: "selected-square-fill",
+        type: "fill",
+        source: "selected-square",
+        paint: { "fill-color": "#c8102e", "fill-opacity": 0.35 },
+      });
+      map.addLayer({
+        id: "selected-square-outline",
+        type: "line",
+        source: "selected-square",
+        paint: { "line-color": "#c8102e", "line-width": 2.5 },
+      });
+
+      setMapReady(true);
+
       const params = new URLSearchParams(window.location.search);
       const qWords = params.get("words");
       const qLat = params.get("lat");
       const qLng = params.get("lng");
-      if (qWords) {
-        void fetchWords(qWords);
-      } else if (qLat && qLng) {
-        void fetchSquare(Number(qLat), Number(qLng));
-      }
+      if (qWords) void fetchWords(qWords);
+      else if (qLat && qLng) void fetchSquare(Number(qLat), Number(qLng));
     });
 
     map.on("click", (event) => {
-      // Prefer W3W grid feature hit when layer on
       const hits = map.queryRenderedFeatures(event.point, {
-        layers: ["w3w-agr-fill"],
+        layers: ["w3w-agr-fill", "council-agr-fill"],
       });
-      if (hits.length && hits[0].properties?.lat != null) {
+      if (hits[0]?.properties?.lat != null && hits[0].layer?.id === "w3w-agr-fill") {
         void fetchSquare(Number(hits[0].properties.lat), Number(hits[0].properties.lng));
         return;
       }
@@ -357,67 +316,26 @@ export default function ScotlandMap() {
     return () => {
       map.remove();
       mapRef.current = null;
+      setMapReady(false);
     };
-    // Intentionally mount-once for the map; fetchSquare is stable enough via scenario default
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Council outline + Ward 18 outline
+  // National heat map (council plot AGR)
   useEffect(() => {
+    if (!mapReady) return;
     const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) {
-      return;
-    }
-
-    const syncLayers = async () => {
-      try {
-        if (showCouncils) {
-          await loadBoundaryLayer(
-            map,
-            "council-boundaries",
-            "council-boundaries-fill",
-            "council-boundaries-line",
-            `${API_URL}/boundaries/councils`,
-            "#001a3a",
-          );
-        } else {
-          hideBoundaryLayer(map, "council-boundaries-fill", "council-boundaries-line");
-        }
-
-        if (showWard18) {
-          await loadBoundaryLayer(
-            map,
-            "glasgow-ward-18",
-            "glasgow-ward-18-fill",
-            "glasgow-ward-18-line",
-            `${API_URL}/boundaries/glasgow-ward-18`,
-            "#f5a623",
-          );
-        } else {
-          hideBoundaryLayer(map, "glasgow-ward-18-fill", "glasgow-ward-18-line");
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load boundaries");
-      }
-    };
-
-    void syncLayers();
-  }, [showCouncils, showWard18]);
-
-  // Council AGR choropleth
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
+    if (!map) return;
 
     const setVis = (vis: "visible" | "none") => {
-      if (map.getLayer("council-agr-fill")) {
-        map.setLayoutProperty("council-agr-fill", "visibility", vis);
-        map.setLayoutProperty("council-agr-line", "visibility", vis);
-      }
+      if (!map.getLayer("council-agr-fill")) return;
+      map.setLayoutProperty("council-agr-fill", "visibility", vis);
+      map.setLayoutProperty("council-agr-line", "visibility", vis);
     };
 
-    if (!showCouncilAgr) {
+    if (!showHeatmap) {
       setVis("none");
+      setLayerNote(null);
       return;
     }
 
@@ -425,14 +343,27 @@ export default function ScotlandMap() {
     setLayerBusy(true);
     void fetch(`${API_URL}/layers/councils-agr?scenario=${scenario}`)
       .then((r) => {
-        if (!r.ok) throw new Error("Council AGR layer failed");
-        return r.json();
+        if (!r.ok) throw new Error("Heat map failed to load");
+        return r.json() as Promise<
+          GeoJSON.FeatureCollection & {
+            meta?: { feature_count?: number; agr_min_gbp?: number; agr_max_gbp?: number };
+          }
+        >;
       })
-      .then((data: GeoJSON.FeatureCollection) => {
+      .then((data) => {
         if (cancelled) return;
         const src = map.getSource("council-agr") as GeoJSONSource | undefined;
-        src?.setData(data);
+        if (!src) throw new Error("Map heat source missing");
+        src.setData(data);
         setVis("visible");
+        const n = data.meta?.feature_count ?? data.features?.length ?? 0;
+        const lo = data.meta?.agr_min_gbp;
+        const hi = data.meta?.agr_max_gbp;
+        setLayerNote(
+          lo != null && hi != null
+            ? `Heat map: ${n} councils · plot AGR £${Math.round(lo).toLocaleString()}–£${Math.round(hi).toLocaleString()}/yr`
+            : `Heat map: ${n} councils`,
+        );
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => {
@@ -442,21 +373,21 @@ export default function ScotlandMap() {
     return () => {
       cancelled = true;
     };
-  }, [showCouncilAgr, scenario]);
+  }, [mapReady, showHeatmap, scenario]);
 
-  // Viewport W3W grid (every cell in view, capped server-side)
+  // Viewport W3W cell grid
   useEffect(() => {
+    if (!mapReady) return;
     const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
+    if (!map) return;
 
     const setVis = (vis: "visible" | "none") => {
-      if (map.getLayer("w3w-agr-fill")) {
-        map.setLayoutProperty("w3w-agr-fill", "visibility", vis);
-        map.setLayoutProperty("w3w-agr-line", "visibility", vis);
-      }
+      if (!map.getLayer("w3w-agr-fill")) return;
+      map.setLayoutProperty("w3w-agr-fill", "visibility", vis);
+      map.setLayoutProperty("w3w-agr-line", "visibility", vis);
     };
 
-    if (!showW3wGrid) {
+    if (!showCellGrid) {
       setVis("none");
       return;
     }
@@ -468,34 +399,34 @@ export default function ScotlandMap() {
       if (cancelled || !mapRef.current) return;
       const b = map.getBounds();
       if (!b) return;
-      // Need reasonable zoom so cells are visible
-      if (map.getZoom() < 12) {
+      if (map.getZoom() < 11) {
         setVis("none");
-        setError("Zoom in (zoom ≥ 12) to load the W3W AGR grid layer.");
+        setLayerNote("Zoom in to 11+ to paint W3W cells with AGR.");
         return;
       }
-      setError(null);
       setLayerBusy(true);
       const url =
         `${API_URL}/layers/w3w-grid?south=${b.getSouth()}&west=${b.getWest()}` +
-        `&north=${b.getNorth()}&east=${b.getEast()}&scenario=${scenario}&max_cells=500`;
+        `&north=${b.getNorth()}&east=${b.getEast()}&scenario=${scenario}&max_cells=600`;
       void fetch(url)
         .then((r) => {
-          if (!r.ok) throw new Error("W3W grid layer failed");
-          return r.json();
+          if (!r.ok) throw new Error("Cell grid failed");
+          return r.json() as Promise<
+            GeoJSON.FeatureCollection & {
+              meta?: { cell_count?: number; sampled?: boolean };
+            }
+          >;
         })
-        .then((data: GeoJSON.FeatureCollection & { meta?: { cell_count?: number; sampled?: boolean } }) => {
+        .then((data) => {
           if (cancelled) return;
-          const src = map.getSource("w3w-agr-grid") as GeoJSONSource | undefined;
-          src?.setData(data);
+          (map.getSource("w3w-agr-grid") as GeoJSONSource)?.setData(data);
           setVis("visible");
-          if (data.meta?.sampled) {
-            setWardStory(
-              `W3W grid: ${data.meta.cell_count} cells in view (sampled — zoom in for denser coverage).`,
-            );
-          } else if (data.meta?.cell_count) {
-            setWardStory(`W3W grid: ${data.meta.cell_count} cells with AGR in view.`);
-          }
+          const n = data.meta?.cell_count ?? 0;
+          setLayerNote(
+            data.meta?.sampled
+              ? `Cell grid: ${n} W3W squares (sampled — zoom closer for denser fill)`
+              : `Cell grid: ${n} W3W squares with AGR`,
+          );
         })
         .catch((err: Error) => setError(err.message))
         .finally(() => {
@@ -505,7 +436,7 @@ export default function ScotlandMap() {
 
     const onMove = () => {
       if (timer) clearTimeout(timer);
-      timer = setTimeout(loadGrid, 450);
+      timer = setTimeout(loadGrid, 400);
     };
 
     loadGrid();
@@ -515,40 +446,10 @@ export default function ScotlandMap() {
       if (timer) clearTimeout(timer);
       map.off("moveend", onMove);
     };
-  }, [showW3wGrid, scenario]);
-
-  const goWard18 = () => {
-    setShowWard18(true);
-    setWardStory(
-      "Glasgow Ward 18 (East Centre) is the map’s featured validation area — residual AGR samples inside a known ward for SLRG-style place-based checks.",
-    );
-    void fetch(`${API_URL}/validation/glasgow-ward-18?samples=8`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then(
-        (
-          payload: {
-            agr_mean_gbp?: number;
-            agr_min_gbp?: number;
-            agr_max_gbp?: number;
-            samples_in_ward?: number;
-            samples_tested?: number;
-          } | null,
-        ) => {
-          if (!payload?.agr_mean_gbp) return;
-          setWardStory(
-            `Glasgow Ward 18 (East Centre) validation: ${payload.samples_in_ward}/${payload.samples_tested} samples in-ward · cell AGR about £${payload.agr_min_gbp?.toFixed(0)}–£${payload.agr_max_gbp?.toFixed(0)}/yr (mean £${payload.agr_mean_gbp.toFixed(0)}). Featured case study for place-based residual checks.`,
-          );
-        },
-      )
-      .catch(() => undefined);
-    // East Centre, Glasgow approximate centroid
-    void fetchSquare(55.857, -4.198);
-  };
+  }, [mapReady, showCellGrid, scenario]);
 
   const reestimateCurrent = () => {
-    if (result) {
-      void fetchSquare(result.square.lat, result.square.lng);
-    }
+    if (result) void fetchSquare(result.square.lat, result.square.lng);
   };
 
   const downloadReport = async (format: "markdown" | "json") => {
@@ -595,94 +496,53 @@ export default function ScotlandMap() {
     }
   };
 
-  const downloadWard18Qa = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(
-        `${API_URL}/validation/ward18-qa-pack?samples=10&scenario=${scenario}`,
-      );
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.detail ?? "Ward 18 QA pack failed");
-      }
-      const data = await response.json();
-      const blob = new Blob([JSON.stringify(data, null, 2)], {
-        type: "application/json",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "scotland-agr-ward18-qa-pack.json";
-      a.click();
-      URL.revokeObjectURL(url);
-      const meta = data.mini_roll?.meta;
-      if (meta?.agr_mean_gbp != null) {
-        setWardStory(
-          `Ward 18 QA pack downloaded · mini-roll n=${meta.count} · cell AGR mean £${meta.agr_mean_gbp}/yr (research, not statutory).`,
-        );
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "QA pack failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
           <h1>Scotland AGR Map</h1>
           <p>
-            Annual Ground Rent on every What3Words 3×3 m square in Scotland — research
-            estimate for education, not a tax bill.
+            Heat map of Annual Ground Rent across Scotland — click any place for a
+            What3Words 3×3 m cell estimate.
           </p>
         </div>
 
         <div className="sidebar-scroll">
           <div className="panel">
-            <h2>Explore</h2>
-            <p className="idle-hint">
-              <strong>Click the map</strong> or search a postcode. Start with Edinburgh or
-              Glasgow Ward 18.
+            <h2>Layers</h2>
+            <p className="meta" style={{ marginTop: 0 }}>
+              {layerBusy ? "Loading layer data…" : layerNote ?? "Turn layers on below."}
             </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem", marginTop: "0.75rem" }}>
-              <button
-                className="primary"
-                type="button"
-                disabled={loading}
-                onClick={() => void fetchSquare(55.9533, -3.1883)}
-              >
-                Demo: Edinburgh centre
-              </button>
-              <button
-                className="primary"
-                type="button"
-                disabled={loading}
-                style={{ background: "#001a3a" }}
-                onClick={goWard18}
-              >
-                Featured: Glasgow Ward 18
-              </button>
-              <button
-                type="button"
-                className="scenario-tab"
-                disabled={loading}
-                onClick={() => void downloadWard18Qa()}
-              >
-                Download Ward 18 QA pack (JSON)
-              </button>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={showHeatmap}
+                onChange={(e) => setShowHeatmap(e.target.checked)}
+              />
+              <strong>Scotland heat map</strong> (council plot AGR)
+            </label>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={showCellGrid}
+                onChange={(e) => setShowCellGrid(e.target.checked)}
+              />
+              <strong>W3W cell grid</strong> (zoom in to 11+)
+            </label>
+            <div className="layer-legend">
+              <span>Lower rent</span>
+              <span className="legend-bar" />
+              <span>Higher rent</span>
             </div>
+            <p className="meta">
+              Heat map = every council. Cell grid = every 3×3 m square in the view
+              (capped). Click map for full estimate.
+            </p>
           </div>
 
           <div className="panel find-place">
-            <details open={!result}>
+            <details open>
               <summary>Find a place</summary>
-              <p className="meta" style={{ marginTop: "0.5rem" }}>
-                Every estimate snaps to a <strong>What3Words 3×3 m square</strong> — the
-                original precision unit of this map.
-              </p>
               <div className="field" style={{ marginTop: "0.75rem" }}>
                 <label htmlFor="postcode">Postcode</label>
                 <input
@@ -703,7 +563,7 @@ export default function ScotlandMap() {
               </button>
 
               <div className="field" style={{ marginTop: "0.85rem" }}>
-                <label htmlFor="words">What3Words (///three.word.address)</label>
+                <label htmlFor="words">What3Words</label>
                 <input
                   id="words"
                   value={words}
@@ -723,92 +583,30 @@ export default function ScotlandMap() {
                 {loading ? "Resolving…" : "Search What3Words"}
               </button>
               <p className="meta" style={{ marginTop: "0.5rem" }}>
-                Needs <code>W3W_API_KEY</code> on the backend (SLRG nonprofit application).
-                Without a key, map clicks still use the W3W-aligned 3 m grid.
+                Optional API key for ///words. Clicks always use the 3 m W3W grid.
               </p>
-
-              <details style={{ marginTop: "0.85rem" }}>
-                <summary style={{ fontSize: "0.85rem" }}>Coordinates</summary>
-                <div className="field" style={{ marginTop: "0.65rem" }}>
-                  <label htmlFor="lat">Latitude</label>
-                  <input id="lat" value={lat} onChange={(e) => setLat(e.target.value)} />
-                </div>
-                <div className="field">
-                  <label htmlFor="lng">Longitude</label>
-                  <input id="lng" value={lng} onChange={(e) => setLng(e.target.value)} />
-                </div>
-                <button
-                  className="primary"
-                  disabled={loading}
-                  onClick={() => void fetchSquare(Number(lat), Number(lng))}
-                >
-                  {loading ? "Calculating…" : "Estimate AGR"}
-                </button>
-              </details>
-            </details>
-          </div>
-
-          <div className="panel">
-            <details open>
-              <summary style={{ fontWeight: 600, cursor: "pointer", color: "var(--slrg-navy)" }}>
-                Map layers {layerBusy ? "(loading…)" : ""}
-              </summary>
-              <p className="meta" style={{ marginTop: "0.45rem" }}>
-                Scotland has billions of 3×3 m W3W cells — we load AGR as layers
-                (councils nationwide, dense grid in the viewport when zoomed in).
-              </p>
-              <label className="checkbox-row" style={{ marginTop: "0.65rem" }}>
-                <input
-                  type="checkbox"
-                  checked={showCouncilAgr}
-                  onChange={(e) => setShowCouncilAgr(e.target.checked)}
-                />
-                Council AGR choropleth (plot £/year)
-              </label>
-              <label className="checkbox-row">
-                <input
-                  type="checkbox"
-                  checked={showW3wGrid}
-                  onChange={(e) => setShowW3wGrid(e.target.checked)}
-                />
-                W3W cell AGR grid (zoom ≥ 12)
-              </label>
-              <label className="checkbox-row">
-                <input
-                  type="checkbox"
-                  checked={showCouncils}
-                  onChange={(e) => setShowCouncils(e.target.checked)}
-                />
-                Council outlines only
-              </label>
-              <label className="checkbox-row">
-                <input
-                  type="checkbox"
-                  checked={showWard18}
-                  onChange={(e) => setShowWard18(e.target.checked)}
-                />
-                Glasgow Ward 18 (East Centre)
-              </label>
-              <div className="layer-legend">
-                <span>Low AGR</span>
-                <span className="legend-bar" />
-                <span>High AGR</span>
-              </div>
+              <button
+                type="button"
+                className="scenario-tab"
+                style={{ marginTop: "0.5rem" }}
+                disabled={loading}
+                onClick={() => {
+                  mapRef.current?.flyTo({ center: [-4.2, 56.8], zoom: 6.2 });
+                  void fetchSquare(55.9533, -3.1883);
+                }}
+              >
+                Demo: Edinburgh (keep heat map visible)
+              </button>
             </details>
           </div>
 
           <div className="panel">
             <details>
               <summary style={{ fontWeight: 600, cursor: "pointer", color: "var(--slrg-navy)" }}>
-                Explore assumptions (research)
+                Assumptions (research)
               </summary>
-              <p className="meta" style={{ marginTop: "0.5rem" }}>
-                Signed-off defaults: yield 5%, urban Pickard 70%. Move sliders then re-estimate.
-              </p>
-              <div className="field">
-                <label htmlFor="yield">
-                  Rentalisation yield: {yieldPct}%
-                </label>
+              <div className="field" style={{ marginTop: "0.5rem" }}>
+                <label htmlFor="yield">Yield: {yieldPct}%</label>
                 <input
                   id="yield"
                   type="range"
@@ -820,9 +618,7 @@ export default function ScotlandMap() {
                 />
               </div>
               <div className="field">
-                <label htmlFor="urban">
-                  Urban economic factor (Pickard): {urbanPickardPct}%
-                </label>
+                <label htmlFor="urban">Urban Pickard: {urbanPickardPct}%</label>
                 <input
                   id="urban"
                   type="range"
@@ -839,7 +635,7 @@ export default function ScotlandMap() {
                 disabled={loading || !result}
                 onClick={reestimateCurrent}
               >
-                Re-estimate with assumptions
+                Re-estimate selection
               </button>
               <label className="checkbox-row">
                 <input
@@ -847,42 +643,17 @@ export default function ScotlandMap() {
                   checked={includeSales}
                   onChange={(e) => setIncludeSales(e.target.checked)}
                 />
-                Include sales comparable cross-check
+                Sales cross-check (research)
               </label>
-              <p className="meta">
-                Uses local sales store (synthetic fixtures until ROS/licensed data is
-                ingested). Never scrapes property portals.
-              </p>
-              <button
-                type="button"
-                className="scenario-tab"
-                style={{ marginTop: "0.45rem" }}
-                onClick={() => {
-                  setYieldPct(5);
-                  setUrbanPickardPct(70);
-                }}
-              >
-                Reset to defaults (5% / 70%)
-              </button>
             </details>
           </div>
 
-          {wardStory && (
-            <div className="panel ward-story">
-              <h2>Ward 18</h2>
-              <p className="meta" style={{ margin: 0 }}>
-                {wardStory}
-              </p>
-            </div>
-          )}
-
           <div className="panel">
-            <h2>Result</h2>
-            {error && <p className="meta">{error}</p>}
+            <h2>Selection</h2>
+            {error && <p className="meta" style={{ color: "#c8102e" }}>{error}</p>}
             {!error && !result && (
               <p className="idle-hint">
-                Click the map or use Explore above. You&apos;ll get a plain £/year estimate
-                on a What3Words 3×3 m cell, with optional detail on how it was calculated.
+                The coloured map is council-level AGR. Click anywhere for a cell estimate.
               </p>
             )}
             {result && (
@@ -923,11 +694,11 @@ export default function ScotlandMap() {
 
       <div className="map-wrap">
         <div id="map" ref={mapContainer} />
-        {!result && (
-          <div className="map-hint">
-            Click anywhere in Scotland — snaps to a What3Words 3×3 m cell
-          </div>
-        )}
+        <div className="map-hint">
+          {showHeatmap
+            ? "Scotland AGR heat map · click a place for a W3W cell"
+            : "Heat map off · enable “Scotland heat map” in Layers"}
+        </div>
       </div>
     </div>
   );
