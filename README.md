@@ -2,7 +2,8 @@
 
 Interactive Annual Ground Rent map for Scotland. Each **What3Words 3×3 m square** (9 sqm) gets its own AGR estimate based on SLRG methodology.
 
-**Operational charge maths:** Wightman residual → Pickard de-speculation → Sandilands scenarios.
+**Operational charge maths (valuer residual roll):**  
+HABU existing use → **MV − DRC** (Wightman residual) → Pickard economic site capital → **× 5% yield** → Sandilands scenarios.
 
 **Intellectual lineage** (methodology and breakdown notes — does not change residual maths):
 

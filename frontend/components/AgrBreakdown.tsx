@@ -18,7 +18,7 @@ export type AgrResult = {
   site_capital_per_sqm_gbp: number;
   despeculated_site_capital_per_sqm_gbp: number;
   despeculated_site_value_gbp: number;
-  site_share_used: number;
+  site_share_used: number | null;
   yield_rate: number;
   capture_rate: number;
   confidence: string;
@@ -42,6 +42,17 @@ export type AgrResult = {
   site_share_source?: string;
   national_rent_pool_gbp?: number;
   integrity_caveats?: string[];
+  habu?: string;
+  hope_value_excluded?: boolean;
+  market_value_gbp?: number | null;
+  rebuild_cost_new_gbp?: number | null;
+  drc_improvements_gbp?: number | null;
+  site_capital_market_per_sqm_gbp?: number;
+  roll_annual_rent_notional_plot_gbp?: number;
+  roll_annual_rent_parcel_gbp?: number | null;
+  notional_plot_sqm?: number;
+  pickard_factor?: number;
+  pickard_label?: string;
 };
 
 type Props = {
@@ -71,12 +82,6 @@ function formatGbpBn(value: number) {
   return `£${(value / 1_000_000_000).toFixed(0)}bn`;
 }
 
-function siteShareSourceLabel(source?: string) {
-  if (source === "wightman_49pct") return "Wightman research (49%)";
-  if (source === "slrg_60pct") return "SLRG display default (60%)";
-  return source ?? "config";
-}
-
 export default function AgrBreakdown({
   agr,
   areaSqm,
@@ -87,13 +92,14 @@ export default function AgrBreakdown({
   lng,
 }: Props) {
   const active = agr.scenarios[scenario];
+  const isResidual = agr.method === "residual_drc";
 
   return (
     <>
       <p className="integrity-banner" role="note">
-        {agr.estimate_label ?? "Map residual AGR (research)"} — not an official tax
-        bill. Square figures use residual maths; the national rent pool is a separate
-        Sandilands macro concept.
+        {agr.estimate_label ?? "Valuer residual AGR roll"} — open-data approximation of
+        how a valuer would assess site rent for an AGR roll (MV − DRC → economic base →
+        yield). Not an official rates bill.
       </p>
 
       <div className="scenario-tabs" role="tablist" aria-label="AGR policy scenario">
@@ -120,7 +126,7 @@ export default function AgrBreakdown({
         <span className="agr-unit">/year</span>
       </div>
       <p className="meta" style={{ marginTop: "0.25rem" }}>
-        Scenario charge for this {areaSqm} sqm square
+        Scenario charge for this {areaSqm} m² grid cell
       </p>
 
       <table className="breakdown-table">
@@ -129,7 +135,7 @@ export default function AgrBreakdown({
             <th>Location</th>
             <td>
               {postcode && <>{postcode} · </>}
-              {lat.toFixed(6)}, {lng.toFixed(6)} ({areaSqm} sqm)
+              {lat.toFixed(6)}, {lng.toFixed(6)} ({areaSqm} m²)
             </td>
           </tr>
           <tr>
@@ -150,55 +156,95 @@ export default function AgrBreakdown({
               <td>
                 {agr.parcel_id}
                 {agr.parcel_area_sqm
-                  ? ` (${agr.parcel_area_sqm.toLocaleString("en-GB")} sqm)`
+                  ? ` (${agr.parcel_area_sqm.toLocaleString("en-GB")} m²)`
                   : ""}
               </td>
             </tr>
           )}
-          {agr.average_price_gbp && (
+          <tr>
+            <th>HABU</th>
+            <td>
+              {agr.habu ?? "—"}
+              {agr.hope_value_excluded ? " · hope value excluded from basis" : ""}
+            </td>
+          </tr>
+          {isResidual && agr.market_value_gbp != null && (
             <tr>
-              <th>HPI avg price</th>
+              <th>1. Market value</th>
               <td>
-                {formatGbp(agr.average_price_gbp)} (council residential average)
+                {formatGbp(agr.market_value_gbp)} (typical dwelling, council HPI)
+              </td>
+            </tr>
+          )}
+          {isResidual && agr.rebuild_cost_new_gbp != null && (
+            <tr>
+              <th>2. Rebuild (new)</th>
+              <td>{formatGbp(agr.rebuild_cost_new_gbp)}</td>
+            </tr>
+          )}
+          {isResidual && agr.drc_improvements_gbp != null && (
+            <tr>
+              <th>3. DRC improvements</th>
+              <td>
+                {formatGbp(agr.drc_improvements_gbp)} (depreciated rebuild of buildings)
               </td>
             </tr>
           )}
           <tr>
-            <th>Site capital (map)</th>
-            <td>{formatGbp(agr.site_capital_per_sqm_gbp)}/sqm residual proxy</td>
-          </tr>
-          <tr>
-            <th>De-speculated site</th>
+            <th>4. Site capital (market residual)</th>
             <td>
-              {formatGbp(agr.despeculated_site_capital_per_sqm_gbp)}/sqm (
-              {formatGbp(agr.despeculated_site_value_gbp)} on {areaSqm} sqm) — Pickard
+              {formatGbp(agr.site_capital_market_per_sqm_gbp ?? agr.site_capital_per_sqm_gbp)}
+              /m²
+              {agr.site_share_used != null
+                ? ` · implied land share ${(agr.site_share_used * 100).toFixed(0)}% of MV`
+                : ""}
             </td>
           </tr>
           <tr>
-            <th>Site share</th>
+            <th>5. Site capital (economic)</th>
             <td>
-              {(agr.site_share_used * 100).toFixed(0)}% ·{" "}
-              {siteShareSourceLabel(agr.site_share_source)}
+              {formatGbp(agr.despeculated_site_capital_per_sqm_gbp)}/m² after Pickard
+              {agr.pickard_factor != null
+                ? ` ×${(agr.pickard_factor * 100).toFixed(0)}% (${agr.pickard_label ?? "factor"})`
+                : ""}
             </td>
           </tr>
           <tr>
-            <th>Yield rate</th>
+            <th>6. Annual economic rent</th>
             <td>
-              {(agr.yield_rate * 100).toFixed(1)}% (capital → annual rent)
+              {formatGbp(agr.site_rental_per_sqm_gbp)}/m²/year · yield{" "}
+              {(agr.yield_rate * 100).toFixed(1)}%
             </td>
           </tr>
           <tr>
-            <th>Map economic rent</th>
+            <th>Grid cell roll line</th>
             <td>
-              {formatGbp(agr.economic_annual_rent_gbp)}/year (full AGR on residual)
+              {formatGbp(agr.economic_annual_rent_gbp)}/year on {areaSqm} m² (full AGR)
             </td>
           </tr>
+          {agr.roll_annual_rent_notional_plot_gbp != null && (
+            <tr>
+              <th>Notional plot roll line</th>
+              <td>
+                {formatGbp(agr.roll_annual_rent_notional_plot_gbp)}/year on{" "}
+                {agr.notional_plot_sqm?.toLocaleString("en-GB") ?? "—"} m² plot
+              </td>
+            </tr>
+          )}
+          {agr.roll_annual_rent_parcel_gbp != null && (
+            <tr>
+              <th>Parcel roll line</th>
+              <td>
+                {formatGbp(agr.roll_annual_rent_parcel_gbp)}/year on cadastral parcel
+              </td>
+            </tr>
+          )}
           {agr.national_rent_pool_gbp != null && (
             <tr>
               <th>National rent pool</th>
               <td>
-                {formatGbpBn(agr.national_rent_pool_gbp)}/year (Sandilands macro —
-                not the sum of map squares)
+                {formatGbpBn(agr.national_rent_pool_gbp)}/year (Sandilands macro — not sum
+                of roll cells)
               </td>
             </tr>
           )}
@@ -208,14 +254,13 @@ export default function AgrBreakdown({
               <tr>
                 <th>Equal share (Ogilvie / Paine)</th>
                 <td>
-                  One Scot ≈ {formatGbp(agr.equal_share_rent_per_person_gbp)}
-                  /year from the <em>national pool</em>
+                  One Scot ≈ {formatGbp(agr.equal_share_rent_per_person_gbp)}/year from
+                  national pool
                   {agr.scotland_population
                     ? ` (${agr.scotland_population.toLocaleString("en-GB")} people)`
                     : ""}
-                  ; this square&apos;s <em>map</em> economic rent is{" "}
-                  {(agr.square_as_fraction_of_equal_claim * 100).toFixed(4)}% of that
-                  claim
+                  ; this cell is{" "}
+                  {(agr.square_as_fraction_of_equal_claim * 100).toFixed(4)}% of that claim
                 </td>
               </tr>
             )}
@@ -230,7 +275,7 @@ export default function AgrBreakdown({
       </table>
 
       <details className="notes-details">
-        <summary>Calculation notes &amp; lineage</summary>
+        <summary>Valuation notes &amp; lineage</summary>
         <ul>
           {agr.notes.map((note) => (
             <li key={note}>{note}</li>

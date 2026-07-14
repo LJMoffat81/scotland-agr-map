@@ -36,45 +36,57 @@ Calculation **maths** still run on the operational trio **Wightman → Pickard �
 
 **Attribution note:** ATCOR/EBCOR are formalised by **Gaffney**. **Sandilands** applies the rent-shift and Scotland GDP case. Market price correction is **Harrison** (cycle/speculation story) + **Pickard** (operational discount).
 
-## Operational calculation (three layers)
+## Valuer-style AGR roll (primary calculation)
 
-### 1. Roger Sandilands (macro)
+The map now computes charges as an **open-data approximation of a valuer residual roll** (Wightman residual + Pickard economic base), not as a simple price × site-share shortcut.
 
-- Official GDP accounts show "rent on land" as ~£417m — Sandilands argues true rent is **~50% of GDP**, hidden inside gross operating surplus and conflated with capital returns.
-- With **Gaffney’s ATCOR**, taxes on wages and profits are ultimately absorbed by land rent at productive locations.
-- AGR has **zero deadweight loss** on pure land rent (fixed supply).
-- Replacing Scotland Income Tax with rent charges could add **~£11.5bn/year** to GDP (Sandilands 2018).
-
-### 2. Andy Wightman (site valuation)
-
-Per-site land value uses the **residual method** (implemented at council level with HPI):
+### Step-by-step (urban / existing residential HABU)
 
 ```
-site_value ≈ market_price × site_share   (or full residual: price − DRC of buildings)
-annual_rental = site_value × yield_rate (typically 5%)
+1. HABU = existing authorised residential use (hope value excluded from basis)
+2. MV   = council HPI average dwelling price (existing-use sales evidence)
+3. Rebuild_new = floor_m² × blended rebuild £/m² × regional factor
+4. DRC  = Rebuild_new × average stock remaining factor (default 55%)
+5. Site_capital_market = clamp(MV − DRC) within min/max land-share bounds
+6. Site_capital_economic = Site_capital_market × Pickard urban factor (default 70%)
+7. Annual_rent_economic = Site_capital_economic × yield (default 5%)
+8. Grid charge = Annual_rent_economic_per_m² × 9 m² × scenario
 ```
 
-Valuation rules:
-- **Highest and Best Use** = authorised planning consent, not hope value
-- For most sites, HABU = existing use
-- Rural fallback: land use category benchmarks (Figure 8, HPI-adjusted)
+Also reported: **notional plot** roll line (default 280 m²) and **parcel** roll line when ROS INSPIRE area is available.
 
-### 3. Duncan Pickard (charge adjustment)
+### Rural / agriculture HABU
 
-Market land prices are **inflated by speculation** (Harrison’s cycle story). AGR charges use **economic rental value**:
+```
+Category £/ha (2009 land-use table) × HPI factor
+  × Pickard farmland productive factor (0.20 — market ~5× productive)
+  × yield 5% → annual rent / m²
+```
 
-| Land type | Distortion | Correction |
-|-----------|------------|------------|
-| Farmland | Market ~5× productive value | Use productive value (e.g. £16/acre not £80) |
-| Urban | Credit, tax design, bubble premia | De-speculation discount (~70%) |
+### 1. Roger Sandilands (macro scenarios)
 
-Marginal land (Ricardo/Sandilands): peripheral locations with no locational surplus → **near-zero AGR**.
+- True rent **~50% of GDP** with ATCOR; official “rent on land” (~£417m) is not the pool.
+- Income-tax replacement and growth narratives use the **national pool**, not the sum of roll cells.
+
+### 2. Andy Wightman (residual)
+
+- Residual = **market value − DRC of improvements** (rebuild / insurance family of methods).
+- HABU = authorised / existing use for most sites; hope value out of the levy base.
+
+### 3. Duncan Pickard (economic rent)
+
+| Land type | Distortion | Correction on residual capital |
+|-----------|------------|--------------------------------|
+| Farmland | Market ~5× productive | × 0.20 |
+| Urban | Tax design, credit, bubble premia | × 0.70 (config; SLRG-tuned) |
+
+Marginal land: near-zero rent after wages and capital (Ricardo).
 
 ## Two rent concepts (read this)
 
 | Concept | Source | Used for |
 |---------|--------|----------|
-| **Map residual AGR** | Wightman residual proxy → Pickard discount → 5% yield | Per-square charge under full AGR and base for scaling |
+| **Map residual AGR roll** | Valuer residual (MV − DRC) → Pickard → 5% yield | Per-cell / plot / parcel roll lines and scenario base |
 | **National rent pool** | Sandilands macro (~£90bn / ~50% of GDP) | Equal-share illustration; income-tax **scale factor** only |
 
 **They are not the same number.** Summing all map squares is **not** calibrated to equal the Sandilands pool. Income-tax scenario multiplies map economic rent by `(£11.5bn ÷ £90bn)`. Equal-share divides the **national pool** by population, then compares this square’s **map** rent to that claim.
@@ -105,12 +117,11 @@ This frames each square relative to one Scot’s equal annual claim on the **nat
 ## Per-square formula (W3W 3×3 m)
 
 ```
-1. Snap lat/lng to 3m W3W grid cell (9 sqm)
-2. site_capital_per_sqm = residual_method(location)     [Wightman]
-3. despeculated = site_capital × discount_factor          [Pickard]
-4. annual_rental_per_sqm = despeculated × 0.05
-5. AGR = annual_rental_per_sqm × 9 × capture_rate        [scenario]
-6. equal-share stats from national rent pool             [Ogilvie/Paine framing]
+1. Snap lat/lng to 3m W3W grid cell (9 m²)
+2. Run valuer residual / productive assessment at council HABU
+3. Economic rent £/m² × 9 × scenario capture
+4. Also emit notional-plot and parcel roll lines
+5. Equal-share stats from national rent pool [Ogilvie/Paine framing]
 ```
 
 ## Policy scenarios

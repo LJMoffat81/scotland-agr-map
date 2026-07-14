@@ -95,7 +95,8 @@ def test_lineage_config_has_core_and_satellite():
     }.issubset(core_ids)
     assert config["macro"]["atcor"] is True
     assert config["macro"]["ebcor"] is True
-    assert config["integrity"]["estimate_kind"] == "map_residual_research"
+    assert config["integrity"]["estimate_kind"] == "valuer_residual_roll"
+    assert config["valuer_roll"]["method"] == "residual_drc"
     assert len(config["integrity"]["caveats"]) >= 4
 
 
@@ -106,9 +107,10 @@ def test_integrity_fields_on_breakdown():
     square = snap_to_w3w_grid(55.9533, -3.1883)
     breakdown = calculate_square_agr(square)
 
-    assert breakdown.estimate_kind == "map_residual_research"
-    assert "research" in breakdown.estimate_label.lower()
-    assert breakdown.site_share_source in ("slrg_60pct", "wightman_49pct")
+    assert breakdown.estimate_kind == "valuer_residual_roll"
+    assert "valuer" in breakdown.estimate_label.lower() or "residual" in breakdown.estimate_label.lower()
     assert breakdown.national_rent_pool_gbp == 90_000_000_000
     assert len(breakdown.integrity_caveats) >= 4
+    assert breakdown.method == "residual_drc"
+    assert breakdown.drc_improvements_gbp is not None
     assert any("macro" in note.lower() or "pool" in note.lower() for note in breakdown.notes)

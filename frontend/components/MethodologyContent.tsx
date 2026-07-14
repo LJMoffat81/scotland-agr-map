@@ -110,10 +110,10 @@ export default function MethodologyContent() {
       <h1>Methodology</h1>
       <p>
         Scotland AGR Map estimates Annual Ground Rent (AGR) for each What3Words
-        3×3 metre square (9 sqm). <strong>Charge maths</strong> use Wightman residual
-        valuation, Pickard de-speculation, and Sandilands policy scenarios. The wider
-        intellectual lineage explains what ground-rent is and why the community may
-        claim it.
+        3×3 metre square (9 m²) using a <strong>valuer residual roll</strong>: market
+        value − DRC of buildings (Wightman), Pickard economic base, then 5% yield,
+        plus Sandilands policy scenarios. The wider intellectual lineage explains what
+        ground-rent is and why the community may claim it.
       </p>
       <p className="integrity-banner" role="note">
         {config?.integrity?.estimate_label ?? "Map residual AGR (research)"} is not an
@@ -217,26 +217,27 @@ export default function MethodologyContent() {
       </section>
 
       <section>
-        <h2>2. Operational — Andy Wightman (site valuation)</h2>
-        <p>Per-square site value uses the residual method at council level:</p>
+        <h2>2. Operational — Andy Wightman (valuer residual)</h2>
+        <p>Urban sites use a residual roll assessment:</p>
         <pre className="formula">
-          site_capital = HPI_average_price × site_share ÷ typical_dwelling_sqm
+          {`site_capital_market = MV − DRC(improvements)
+site_capital_economic = site_capital_market × Pickard_factor
+annual_rent = site_capital_economic × yield`}
         </pre>
         <ul>
           <li>
-            Method: {config?.valuation.primary_method ?? "residual"} on UK HPI
-            (Registers of Scotland / HM Land Registry, free open data).
+            MV = council HPI average dwelling; DRC = rebuild £/m² × floor area × region ×
+            stock remaining factor (default 55%).
           </li>
           <li>
-            Site share: {siteShare ? `${(siteShare * 100).toFixed(0)}%` : "…"} · Yield:{" "}
-            {config ? `${(config.valuation.yield_rate * 100).toFixed(1)}%` : "…"} ·
-            Typical dwelling:{" "}
-            {config ? `${config.valuation.typical_dwelling_sqm} sqm` : "…"}
+            HABU = existing authorised use; hope value excluded from assessment basis.
           </li>
-          <li>Rural councils fall back to HPI-adjusted land-use category values.</li>
           <li>
-            Smith/Ricardo framing: isolate <em>ground-rent</em> of location, not buildings.
+            Implied land share is an output of residual (not a fixed{" "}
+            {siteShare ? `${(siteShare * 100).toFixed(0)}%` : "60%"} input). Yield:{" "}
+            {config ? `${(config.valuation.yield_rate * 100).toFixed(1)}%` : "5%"}.
           </li>
+          <li>Rural councils: productive land-use capital × Pickard farmland factor.</li>
         </ul>
       </section>
 

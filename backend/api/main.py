@@ -19,7 +19,7 @@ from validation.glasgow_ward_18 import run_validation
 app = FastAPI(
     title="Scotland AGR Map API",
     description="Annual Ground Rent estimates for What3Words 3x3m squares in Scotland",
-    version="0.4.0",
+    version="0.5.0",
 )
 
 _allowed_origins, _allowed_origin_regex = cors_settings()
@@ -86,7 +86,7 @@ def health() -> dict:
     return {
         "status": "ok",
         "service": "scotland-agr-map-api",
-        "version": "0.4.0",
+        "version": "0.5.0",
         "w3w_configured": bool(__import__("os").getenv("W3W_API_KEY")),
         "economist_signoff_status": signoff.get("status", "unknown"),
     }

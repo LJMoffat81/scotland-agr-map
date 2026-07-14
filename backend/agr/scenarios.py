@@ -58,9 +58,9 @@ def compute_scenarios(
             label=full_cfg["label"],
             annual_charge_gbp=round(full_charge, 2),
             description=(
-                "Full map residual economic rent for this square "
-                "(Wightman–Pickard estimate; Smith/George full recovery framing). "
-                "Not calibrated so all squares sum to the national rent pool."
+                "Full annual economic ground rent for this grid cell from the valuer "
+                "residual roll (MV − DRC → Pickard → yield; Wightman/SLRG). "
+                "Not calibrated so all cells sum to the national rent pool."
             ),
             effective_rate=full_cfg["capture_rate"],
         ),
@@ -81,8 +81,8 @@ def compute_scenarios(
             label=revenue_cfg["label"],
             annual_charge_gbp=round(revenue_charge, 2),
             description=(
-                f"Charge {revenue_rate * 100:.2f}% of this square’s de-speculated site capital "
-                "(Wightman-style CT + NDR replacement rate on map residual capital)."
+                f"Charge {revenue_rate * 100:.2f}% of this cell’s economic site capital "
+                "(Wightman-style CT + NDR replacement rate on residual roll capital)."
             ),
             effective_rate=revenue_rate,
         ),
