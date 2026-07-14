@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import maplibregl, { Map, GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import AgrBreakdown, { AgrResult, ScenarioId } from "./AgrBreakdown";
+import { apiFetch, apiJson, pingApi } from "../lib/api";
 
 type SquareResponse = {
   square: {
@@ -24,14 +25,11 @@ type SquareResponse = {
   };
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
-
 const emptyCollection: GeoJSON.FeatureCollection = {
   type: "FeatureCollection",
   features: [],
 };
 
-/** Plot £/year breaks tuned to current residual range (~£40–£7k). */
 const PLOT_AGR_COLOR: maplibregl.ExpressionSpecification = [
   "interpolate",
   ["linear"],
@@ -50,7 +48,6 @@ const PLOT_AGR_COLOR: maplibregl.ExpressionSpecification = [
   "#253494",
 ];
 
-/** Cell £/year breaks for dense W3W grid. */
 const CELL_AGR_COLOR: maplibregl.ExpressionSpecification = [
   "interpolate",
   ["linear"],
@@ -76,9 +73,7 @@ export default function ScotlandMap() {
   const [postcode, setPostcode] = useState("EH1 1YZ");
   const [words, setWords] = useState("filled.count.soap");
   const [scenario, setScenario] = useState<ScenarioId>("full_agr");
-  /** National heat map — on by default */
   const [showHeatmap, setShowHeatmap] = useState(true);
-  /** Dense W3W cells in viewport */
   const [showCellGrid, setShowCellGrid] = useState(false);
   const [layerBusy, setLayerBusy] = useState(false);
   const [layerNote, setLayerNote] = useState<string | null>(null);
@@ -86,6 +81,7 @@ export default function ScotlandMap() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SquareResponse | null>(null);
   const [signoffStatus, setSignoffStatus] = useState<string | null>(null);
+  const [apiStatus, setApiStatus] = useState<{ ok: boolean; message: string } | null>(null);
   const [yieldPct, setYieldPct] = useState(5);
   const [urbanPickardPct, setUrbanPickardPct] = useState(70);
   const [includeSales, setIncludeSales] = useState(false);
@@ -121,7 +117,6 @@ export default function ScotlandMap() {
           },
         ],
       });
-      // Pan to place but keep national heat map readable (don't slam to street zoom)
       const z = map.getZoom();
       map.flyTo({
         center: [payload.square.lng, payload.square.lat],
@@ -149,16 +144,14 @@ export default function ScotlandMap() {
       setError(null);
       const sc = nextScenario ?? scenario;
       try {
-        const response = await fetch(
-          `${API_URL}/square?lat=${nextLat}&lng=${nextLng}&scenario=${sc}${sensitivityQuery()}`,
+        const response = await apiFetch(
+          `/square?lat=${nextLat}&lng=${nextLng}&scenario=${sc}${sensitivityQuery()}`,
         );
-        if (!response.ok) {
-          const payload = await response.json();
-          throw new Error(payload.detail ?? "Failed to fetch AGR estimate");
-        }
         applyResult((await response.json()) as SquareResponse);
+        setApiStatus({ ok: true, message: "via same-origin proxy" });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
+        setApiStatus({ ok: false, message: err instanceof Error ? err.message : "API error" });
       } finally {
         setLoading(false);
       }
@@ -171,16 +164,14 @@ export default function ScotlandMap() {
     setError(null);
     try {
       const encoded = encodeURIComponent(rawPostcode.trim());
-      const response = await fetch(
-        `${API_URL}/postcode/${encoded}?scenario=${scenario}${sensitivityQuery()}`,
+      const response = await apiFetch(
+        `/postcode/${encoded}?scenario=${scenario}${sensitivityQuery()}`,
       );
-      if (!response.ok) {
-        const payload = await response.json();
-        throw new Error(payload.detail ?? "Failed to fetch postcode");
-      }
       applyResult((await response.json()) as SquareResponse);
+      setApiStatus({ ok: true, message: "via same-origin proxy" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
+      setApiStatus({ ok: false, message: err instanceof Error ? err.message : "API error" });
     } finally {
       setLoading(false);
     }
@@ -191,31 +182,43 @@ export default function ScotlandMap() {
     setError(null);
     try {
       const encoded = encodeURIComponent(rawWords.trim());
-      const response = await fetch(
-        `${API_URL}/square?words=${encoded}&scenario=${scenario}${sensitivityQuery()}`,
+      const response = await apiFetch(
+        `/square?words=${encoded}&scenario=${scenario}${sensitivityQuery()}`,
       );
-      if (!response.ok) {
-        const payload = await response.json();
-        throw new Error(payload.detail ?? "Failed to fetch What3Words address");
-      }
       applyResult((await response.json()) as SquareResponse);
+      setApiStatus({ ok: true, message: "via same-origin proxy" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
+      setApiStatus({ ok: false, message: err instanceof Error ? err.message : "API error" });
     } finally {
       setLoading(false);
     }
   };
 
+  // Health poll
   useEffect(() => {
-    void fetch(`${API_URL}/signoff`)
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload: { status?: string } | null) => {
+    let cancelled = false;
+    const tick = () => {
+      void pingApi().then((s) => {
+        if (!cancelled) setApiStatus(s);
+      });
+    };
+    tick();
+    const id = setInterval(tick, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  useEffect(() => {
+    void apiJson<{ status?: string }>("/signoff")
+      .then((payload) => {
         if (payload?.status) setSignoffStatus(payload.status);
       })
       .catch(() => undefined);
   }, []);
 
-  // Map init
   useEffect(() => {
     if (!mapContainer.current || mapRef.current) return;
 
@@ -240,7 +243,6 @@ export default function ScotlandMap() {
     map.addControl(new maplibregl.NavigationControl(), "top-right");
 
     map.on("load", () => {
-      // Heat map under selection marker
       map.addSource("council-agr", { type: "geojson", data: emptyCollection });
       map.addLayer({
         id: "council-agr-fill",
@@ -321,7 +323,7 @@ export default function ScotlandMap() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // National heat map (council plot AGR)
+  // National heat map
   useEffect(() => {
     if (!mapReady) return;
     const map = mapRef.current;
@@ -341,19 +343,15 @@ export default function ScotlandMap() {
 
     let cancelled = false;
     setLayerBusy(true);
-    void fetch(`${API_URL}/layers/councils-agr?scenario=${scenario}`)
-      .then((r) => {
-        if (!r.ok) throw new Error("Heat map failed to load");
-        return r.json() as Promise<
-          GeoJSON.FeatureCollection & {
-            meta?: { feature_count?: number; agr_min_gbp?: number; agr_max_gbp?: number };
-          }
-        >;
-      })
+    void apiJson<
+      GeoJSON.FeatureCollection & {
+        meta?: { feature_count?: number; agr_min_gbp?: number; agr_max_gbp?: number };
+      }
+    >(`/layers/councils-agr?scenario=${scenario}`)
       .then((data) => {
         if (cancelled) return;
         const src = map.getSource("council-agr") as GeoJSONSource | undefined;
-        if (!src) throw new Error("Map heat source missing");
+        if (!src) throw new Error("Map heat source missing — refresh the page");
         src.setData(data);
         setVis("visible");
         const n = data.meta?.feature_count ?? data.features?.length ?? 0;
@@ -364,8 +362,12 @@ export default function ScotlandMap() {
             ? `Heat map: ${n} councils · plot AGR £${Math.round(lo).toLocaleString()}–£${Math.round(hi).toLocaleString()}/yr`
             : `Heat map: ${n} councils`,
         );
+        setApiStatus({ ok: true, message: "via same-origin proxy" });
       })
-      .catch((err: Error) => setError(err.message))
+      .catch((err: Error) => {
+        setError(err.message);
+        setApiStatus({ ok: false, message: err.message });
+      })
       .finally(() => {
         if (!cancelled) setLayerBusy(false);
       });
@@ -405,18 +407,14 @@ export default function ScotlandMap() {
         return;
       }
       setLayerBusy(true);
-      const url =
-        `${API_URL}/layers/w3w-grid?south=${b.getSouth()}&west=${b.getWest()}` +
+      const path =
+        `/layers/w3w-grid?south=${b.getSouth()}&west=${b.getWest()}` +
         `&north=${b.getNorth()}&east=${b.getEast()}&scenario=${scenario}&max_cells=600`;
-      void fetch(url)
-        .then((r) => {
-          if (!r.ok) throw new Error("Cell grid failed");
-          return r.json() as Promise<
-            GeoJSON.FeatureCollection & {
-              meta?: { cell_count?: number; sampled?: boolean };
-            }
-          >;
-        })
+      void apiJson<
+        GeoJSON.FeatureCollection & {
+          meta?: { cell_count?: number; sampled?: boolean };
+        }
+      >(path)
         .then((data) => {
           if (cancelled) return;
           (map.getSource("w3w-agr-grid") as GeoJSONSource)?.setData(data);
@@ -428,7 +426,10 @@ export default function ScotlandMap() {
               : `Cell grid: ${n} W3W squares with AGR`,
           );
         })
-        .catch((err: Error) => setError(err.message))
+        .catch((err: Error) => {
+          setError(err.message);
+          setApiStatus({ ok: false, message: err.message });
+        })
         .finally(() => {
           if (!cancelled) setLayerBusy(false);
         });
@@ -457,16 +458,12 @@ export default function ScotlandMap() {
     setReportDownloading(true);
     setError(null);
     try {
-      const q =
-        `${API_URL}/assessment/report?lat=${result.square.lat}&lng=${result.square.lng}` +
+      const path =
+        `/assessment/report?lat=${result.square.lat}&lng=${result.square.lng}` +
         `&scenario=${scenario}&format=${format === "json" ? "json" : "markdown"}` +
         (includeSales ? "&include_sales_context=true" : "") +
         sensitivityQuery();
-      const response = await fetch(q);
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.detail ?? "Failed to download report");
-      }
+      const response = await apiFetch(path);
       const base = `scotland-agr-${result.square.lat.toFixed(5)}_${result.square.lng.toFixed(5)}`;
       if (format === "json") {
         const data = await response.json();
@@ -507,6 +504,25 @@ export default function ScotlandMap() {
           </p>
         </div>
 
+        <div
+          className={`api-banner ${apiStatus?.ok === false ? "api-banner-bad" : apiStatus?.ok ? "api-banner-ok" : ""}`}
+        >
+          {apiStatus == null
+            ? "Checking API…"
+            : apiStatus.ok
+              ? `Connected · ${apiStatus.message}`
+              : apiStatus.message}
+          {apiStatus?.ok === false && (
+            <button
+              type="button"
+              className="api-retry"
+              onClick={() => void pingApi().then(setApiStatus)}
+            >
+              Retry
+            </button>
+          )}
+        </div>
+
         <div className="sidebar-scroll">
           <div className="panel">
             <h2>Layers</h2>
@@ -534,10 +550,6 @@ export default function ScotlandMap() {
               <span className="legend-bar" />
               <span>Higher rent</span>
             </div>
-            <p className="meta">
-              Heat map = every council. Cell grid = every 3×3 m square in the view
-              (capped). Click map for full estimate.
-            </p>
           </div>
 
           <div className="panel find-place">
@@ -556,7 +568,7 @@ export default function ScotlandMap() {
               </div>
               <button
                 className="primary"
-                disabled={loading}
+                disabled={loading || apiStatus?.ok === false}
                 onClick={() => void fetchPostcode(postcode)}
               >
                 {loading ? "Looking up…" : "Search postcode"}
@@ -576,26 +588,23 @@ export default function ScotlandMap() {
               </div>
               <button
                 className="primary"
-                disabled={loading}
+                disabled={loading || apiStatus?.ok === false}
                 onClick={() => void fetchWords(words)}
                 style={{ background: "#001a3a" }}
               >
                 {loading ? "Resolving…" : "Search What3Words"}
               </button>
-              <p className="meta" style={{ marginTop: "0.5rem" }}>
-                Optional API key for ///words. Clicks always use the 3 m W3W grid.
-              </p>
               <button
                 type="button"
                 className="scenario-tab"
                 style={{ marginTop: "0.5rem" }}
-                disabled={loading}
+                disabled={loading || apiStatus?.ok === false}
                 onClick={() => {
                   mapRef.current?.flyTo({ center: [-4.2, 56.8], zoom: 6.2 });
                   void fetchSquare(55.9533, -3.1883);
                 }}
               >
-                Demo: Edinburgh (keep heat map visible)
+                Demo: Edinburgh
               </button>
             </details>
           </div>
@@ -650,7 +659,11 @@ export default function ScotlandMap() {
 
           <div className="panel">
             <h2>Selection</h2>
-            {error && <p className="meta" style={{ color: "#c8102e" }}>{error}</p>}
+            {error && (
+              <p className="meta" style={{ color: "#c8102e" }}>
+                {error}
+              </p>
+            )}
             {!error && !result && (
               <p className="idle-hint">
                 The coloured map is council-level AGR. Click anywhere for a cell estimate.
@@ -695,9 +708,11 @@ export default function ScotlandMap() {
       <div className="map-wrap">
         <div id="map" ref={mapContainer} />
         <div className="map-hint">
-          {showHeatmap
-            ? "Scotland AGR heat map · click a place for a W3W cell"
-            : "Heat map off · enable “Scotland heat map” in Layers"}
+          {apiStatus?.ok === false
+            ? "API offline — start backend on port 8000"
+            : showHeatmap
+              ? "Scotland AGR heat map · click a place for a W3W cell"
+              : "Heat map off · enable “Scotland heat map” in Layers"}
         </div>
       </div>
     </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+import { apiJson, getApiBaseUrl } from "../lib/api";
 
 type Signoff = {
   status: string;
@@ -78,20 +78,18 @@ export default function MethodologyContent() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void fetch(`${API_URL}/signoff`)
-      .then((response) => response.json() as Promise<Signoff>)
+    void apiJson<Signoff>("/signoff")
       .then(setSignoff)
       .catch(() => undefined);
 
-    void fetch(`${API_URL}/config`)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Could not load configuration");
-        }
-        return response.json() as Promise<AgrConfig>;
-      })
+    void apiJson<AgrConfig>("/config")
       .then(setConfig)
-      .catch((err: Error) => setError(err.message));
+      .catch((err: Error) =>
+        setError(
+          err.message ||
+            `Could not load configuration from ${getApiBaseUrl()}`,
+        ),
+      );
   }, []);
 
   const siteShare = config

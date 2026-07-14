@@ -320,6 +320,38 @@ button.primary:disabled {
   width: 100%;
 }
 
+.api-banner {
+  font-size: 0.8rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  background: #eef2f6;
+  color: var(--slrg-muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.api-banner-ok {
+  background: #e6f4ea;
+  color: #1e7a3a;
+}
+
+.api-banner-bad {
+  background: #fdecea;
+  color: #a12622;
+}
+
+.api-retry {
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  border-radius: 6px;
+  padding: 0.15rem 0.45rem;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
 .layer-legend {
   display: flex;
   align-items: center;
