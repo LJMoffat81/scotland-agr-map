@@ -94,6 +94,8 @@ Docs: http://127.0.0.1:8000/docs
 | `GET /validation/ratio-study` | Residual vs sales-comp ratios (Ward 18 samples) |
 | `GET /validation/ward18-qa-pack` | Full Ward 18 QA: spatial + ratios + mini-roll |
 | `GET /sales/status` | Sales pipeline status |
+| `GET /layers/councils-agr` | Council choropleth (plot AGR £/year) |
+| `GET /layers/w3w-grid?south&west&north&east` | Viewport W3W cells with AGR (capped) |
 
 Ops: [docs/OPERATING.md](docs/OPERATING.md) · `.\scripts\run_professional_local.ps1`
 

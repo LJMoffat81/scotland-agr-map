@@ -25,6 +25,18 @@ npm run dev
 | `GET /validation/ward18-qa-pack` | Spatial + ratio + mini-roll for Ward 18 |
 | `GET /validation/ratio-study` | Residual vs sales-comp ratios |
 | `GET /sales/status` | Sales store status |
+| `GET /layers/councils-agr` | National council AGR choropleth |
+| `GET /layers/w3w-grid?...` | Viewport 3×3 m cells with AGR (max_cells) |
+
+### Map layers (product)
+
+| Layer | Coverage | When |
+|-------|----------|------|
+| Council AGR | All Scotland | Overview choropleth |
+| W3W grid | Current map view | Zoom ≥ 12; every cell up to cap (then sampled) |
+| Click | Any cell | Full residual assessment |
+
+Full national 3 m precompute is intentionally not stored (~billions of cells).
 
 ## Batch mini-roll (CLI)
 

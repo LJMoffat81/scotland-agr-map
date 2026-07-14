@@ -35,6 +35,7 @@ Martin Adams / [Unitism](https://unitism.com/) does not change residual maths; i
 | **A5** (done) | Sales comps cross-check | Extraction residual on nearby sales | Research UI; production only when licensed |
 | **A6** (done) | Assessment reports + ratio-study API | Markdown/JSON export; Ward 18 QA structure | Professional deliverable pack |
 | **A7** (done) | Mini-roll batch + Ward 18 QA pack | CLI + `/validation/ward18-qa-pack` | Ops script; dual report download |
+| **A8** (done) | AGR map layers | Council choropleth + viewport W3W grid | Scalable path to “every cell” without storing billions |
 | **B** | Ward 18 pilot sales residual | **ROS licensed/open sales** + parcels | Compare OpenAVMKit land vs residual |
 | **C** | Council pilot mass appraisal | Clean sales, land use, building footprints | Neighbourhood land surface |
 | **D** | Multi-council roll prototype | Repeatable pipeline | Ratio studies + map layers |

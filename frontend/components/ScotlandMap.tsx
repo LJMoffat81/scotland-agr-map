@@ -85,7 +85,10 @@ export default function ScotlandMap() {
   const [words, setWords] = useState("filled.count.soap");
   const [scenario, setScenario] = useState<ScenarioId>("full_agr");
   const [showCouncils, setShowCouncils] = useState(false);
+  const [showCouncilAgr, setShowCouncilAgr] = useState(true);
+  const [showW3wGrid, setShowW3wGrid] = useState(false);
   const [showWard18, setShowWard18] = useState(false);
+  const [layerBusy, setLayerBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SquareResponse | null>(null);
@@ -259,6 +262,73 @@ export default function ScotlandMap() {
         paint: { "line-color": "#c8102e", "line-width": 2 },
       });
 
+      // AGR data layers (empty until toggled / fetched)
+      map.addSource("council-agr", { type: "geojson", data: emptyCollection });
+      map.addLayer({
+        id: "council-agr-fill",
+        type: "fill",
+        source: "council-agr",
+        layout: { visibility: "none" },
+        paint: {
+          "fill-color": [
+            "interpolate",
+            ["linear"],
+            ["coalesce", ["get", "annual_ground_rent_plot_gbp"], 0],
+            0,
+            "#f7fbff",
+            2000,
+            "#c6dbef",
+            5000,
+            "#6baed6",
+            10000,
+            "#2171b5",
+            20000,
+            "#08306b",
+          ],
+          "fill-opacity": 0.55,
+        },
+      });
+      map.addLayer({
+        id: "council-agr-line",
+        type: "line",
+        source: "council-agr",
+        layout: { visibility: "none" },
+        paint: { "line-color": "#001a3a", "line-width": 0.8, "line-opacity": 0.5 },
+      });
+
+      map.addSource("w3w-agr-grid", { type: "geojson", data: emptyCollection });
+      map.addLayer({
+        id: "w3w-agr-fill",
+        type: "fill",
+        source: "w3w-agr-grid",
+        layout: { visibility: "none" },
+        paint: {
+          "fill-color": [
+            "interpolate",
+            ["linear"],
+            ["coalesce", ["get", "annual_ground_rent_gbp"], 0],
+            0,
+            "#fff5f0",
+            50,
+            "#fcbba1",
+            150,
+            "#fb6a4a",
+            300,
+            "#cb181d",
+            600,
+            "#67000d",
+          ],
+          "fill-opacity": 0.65,
+        },
+      });
+      map.addLayer({
+        id: "w3w-agr-line",
+        type: "line",
+        source: "w3w-agr-grid",
+        layout: { visibility: "none" },
+        paint: { "line-color": "#67000d", "line-width": 0.3, "line-opacity": 0.35 },
+      });
+
       // Deep link: prefer W3W words, else lat/lng
       const params = new URLSearchParams(window.location.search);
       const qWords = params.get("words");
@@ -272,6 +342,14 @@ export default function ScotlandMap() {
     });
 
     map.on("click", (event) => {
+      // Prefer W3W grid feature hit when layer on
+      const hits = map.queryRenderedFeatures(event.point, {
+        layers: ["w3w-agr-fill"],
+      });
+      if (hits.length && hits[0].properties?.lat != null) {
+        void fetchSquare(Number(hits[0].properties.lat), Number(hits[0].properties.lng));
+        return;
+      }
       void fetchSquare(event.lngLat.lat, event.lngLat.lng);
     });
 
@@ -284,6 +362,7 @@ export default function ScotlandMap() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Council outline + Ward 18 outline
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) {
@@ -324,6 +403,119 @@ export default function ScotlandMap() {
 
     void syncLayers();
   }, [showCouncils, showWard18]);
+
+  // Council AGR choropleth
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+
+    const setVis = (vis: "visible" | "none") => {
+      if (map.getLayer("council-agr-fill")) {
+        map.setLayoutProperty("council-agr-fill", "visibility", vis);
+        map.setLayoutProperty("council-agr-line", "visibility", vis);
+      }
+    };
+
+    if (!showCouncilAgr) {
+      setVis("none");
+      return;
+    }
+
+    let cancelled = false;
+    setLayerBusy(true);
+    void fetch(`${API_URL}/layers/councils-agr?scenario=${scenario}`)
+      .then((r) => {
+        if (!r.ok) throw new Error("Council AGR layer failed");
+        return r.json();
+      })
+      .then((data: GeoJSON.FeatureCollection) => {
+        if (cancelled) return;
+        const src = map.getSource("council-agr") as GeoJSONSource | undefined;
+        src?.setData(data);
+        setVis("visible");
+      })
+      .catch((err: Error) => setError(err.message))
+      .finally(() => {
+        if (!cancelled) setLayerBusy(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showCouncilAgr, scenario]);
+
+  // Viewport W3W grid (every cell in view, capped server-side)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+
+    const setVis = (vis: "visible" | "none") => {
+      if (map.getLayer("w3w-agr-fill")) {
+        map.setLayoutProperty("w3w-agr-fill", "visibility", vis);
+        map.setLayoutProperty("w3w-agr-line", "visibility", vis);
+      }
+    };
+
+    if (!showW3wGrid) {
+      setVis("none");
+      return;
+    }
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const loadGrid = () => {
+      if (cancelled || !mapRef.current) return;
+      const b = map.getBounds();
+      if (!b) return;
+      // Need reasonable zoom so cells are visible
+      if (map.getZoom() < 12) {
+        setVis("none");
+        setError("Zoom in (zoom ≥ 12) to load the W3W AGR grid layer.");
+        return;
+      }
+      setError(null);
+      setLayerBusy(true);
+      const url =
+        `${API_URL}/layers/w3w-grid?south=${b.getSouth()}&west=${b.getWest()}` +
+        `&north=${b.getNorth()}&east=${b.getEast()}&scenario=${scenario}&max_cells=500`;
+      void fetch(url)
+        .then((r) => {
+          if (!r.ok) throw new Error("W3W grid layer failed");
+          return r.json();
+        })
+        .then((data: GeoJSON.FeatureCollection & { meta?: { cell_count?: number; sampled?: boolean } }) => {
+          if (cancelled) return;
+          const src = map.getSource("w3w-agr-grid") as GeoJSONSource | undefined;
+          src?.setData(data);
+          setVis("visible");
+          if (data.meta?.sampled) {
+            setWardStory(
+              `W3W grid: ${data.meta.cell_count} cells in view (sampled — zoom in for denser coverage).`,
+            );
+          } else if (data.meta?.cell_count) {
+            setWardStory(`W3W grid: ${data.meta.cell_count} cells with AGR in view.`);
+          }
+        })
+        .catch((err: Error) => setError(err.message))
+        .finally(() => {
+          if (!cancelled) setLayerBusy(false);
+        });
+    };
+
+    const onMove = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(loadGrid, 450);
+    };
+
+    loadGrid();
+    map.on("moveend", onMove);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      map.off("moveend", onMove);
+    };
+  }, [showW3wGrid, scenario]);
 
   const goWard18 = () => {
     setShowWard18(true);
@@ -557,17 +749,37 @@ export default function ScotlandMap() {
           </div>
 
           <div className="panel">
-            <details>
+            <details open>
               <summary style={{ fontWeight: 600, cursor: "pointer", color: "var(--slrg-navy)" }}>
-                Map layers
+                Map layers {layerBusy ? "(loading…)" : ""}
               </summary>
+              <p className="meta" style={{ marginTop: "0.45rem" }}>
+                Scotland has billions of 3×3 m W3W cells — we load AGR as layers
+                (councils nationwide, dense grid in the viewport when zoomed in).
+              </p>
               <label className="checkbox-row" style={{ marginTop: "0.65rem" }}>
+                <input
+                  type="checkbox"
+                  checked={showCouncilAgr}
+                  onChange={(e) => setShowCouncilAgr(e.target.checked)}
+                />
+                Council AGR choropleth (plot £/year)
+              </label>
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={showW3wGrid}
+                  onChange={(e) => setShowW3wGrid(e.target.checked)}
+                />
+                W3W cell AGR grid (zoom ≥ 12)
+              </label>
+              <label className="checkbox-row">
                 <input
                   type="checkbox"
                   checked={showCouncils}
                   onChange={(e) => setShowCouncils(e.target.checked)}
                 />
-                Council boundaries
+                Council outlines only
               </label>
               <label className="checkbox-row">
                 <input
@@ -577,6 +789,11 @@ export default function ScotlandMap() {
                 />
                 Glasgow Ward 18 (East Centre)
               </label>
+              <div className="layer-legend">
+                <span>Low AGR</span>
+                <span className="legend-bar" />
+                <span>High AGR</span>
+              </div>
             </details>
           </div>
 

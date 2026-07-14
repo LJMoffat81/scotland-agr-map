@@ -324,6 +324,22 @@ button.primary:disabled {
   width: 100%;
 }
 
+.layer-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+  font-size: 0.75rem;
+  color: var(--slrg-muted);
+}
+
+.legend-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #fff5f0, #fb6a4a, #67000d);
+}
+
 input[type="range"] {
   width: 100%;
 }

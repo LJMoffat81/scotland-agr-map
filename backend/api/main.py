@@ -26,6 +26,8 @@ from spatial.w3w import (
     try_coordinates_to_words,
     words_to_coordinates,
 )
+from layers.councils_layer import build_councils_agr_geojson
+from layers.grid_layer import build_w3w_agr_grid
 from validation.glasgow_ward_18 import run_validation
 from validation.ratio_study import ratio_study_points
 
@@ -178,6 +180,37 @@ def get_council_boundaries() -> JSONResponse:
 @app.get("/boundaries/glasgow-ward-18")
 def get_glasgow_ward_18_boundary() -> JSONResponse:
     return _load_geojson(WARD_18_GEOJSON)
+
+
+@app.get("/layers/councils-agr")
+def layer_councils_agr(
+    scenario: str = Query(default="full_agr"),
+) -> JSONResponse:
+    """Choropleth: notional plot AGR by council (centroid residual)."""
+    try:
+        geo = build_councils_agr_geojson(scenario)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return JSONResponse(geo)
+
+
+@app.get("/layers/w3w-grid")
+def layer_w3w_grid(
+    south: float = Query(..., description="BBox south latitude"),
+    west: float = Query(..., description="BBox west longitude"),
+    north: float = Query(..., description="BBox north latitude"),
+    east: float = Query(..., description="BBox east longitude"),
+    scenario: str = Query(default="full_agr"),
+    max_cells: int = Query(default=400, ge=10, le=1200),
+) -> JSONResponse:
+    """W3W cells with AGR for the map viewport (capped; zoom in for denser grid)."""
+    try:
+        geo = build_w3w_agr_grid(
+            south, west, north, east, scenario=scenario, max_cells=max_cells
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return JSONResponse(geo)
 
 
 @app.get("/validation/glasgow-ward-18")
