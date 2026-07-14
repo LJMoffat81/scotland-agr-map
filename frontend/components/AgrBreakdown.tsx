@@ -93,7 +93,7 @@ type Props = {
   what3words?: string | null;
   w3wConfigured?: boolean;
   salesContext?: SalesContext | null;
-  onDownloadReport?: () => void;
+  onDownloadReport?: (format: "markdown" | "json") => void;
   reportDownloading?: boolean;
 };
 
@@ -304,15 +304,24 @@ export default function AgrBreakdown({
             <a href="/methodology">Full methodology &amp; sources</a>
           </p>
           {onDownloadReport && (
-            <button
-              type="button"
-              className="primary"
-              style={{ marginTop: "0.75rem", width: "100%" }}
-              disabled={reportDownloading}
-              onClick={onDownloadReport}
-            >
-              {reportDownloading ? "Preparing report…" : "Download assessment report"}
-            </button>
+            <div className="download-row">
+              <button
+                type="button"
+                className="primary"
+                disabled={reportDownloading}
+                onClick={() => onDownloadReport("markdown")}
+              >
+                {reportDownloading ? "Preparing…" : "Download report (.md)"}
+              </button>
+              <button
+                type="button"
+                className="scenario-tab"
+                disabled={reportDownloading}
+                onClick={() => onDownloadReport("json")}
+              >
+                Download JSON
+              </button>
+            </div>
           )}
         </div>
       )}

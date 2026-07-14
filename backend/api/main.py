@@ -15,6 +15,7 @@ from fastapi.responses import PlainTextResponse
 from agr.engine import breakdown_to_dict
 from agr.config import load_config
 from agr.overrides import merge_config_overrides
+from agr.batch import assess_points, batch_meta
 from agr.report import API_VERSION, build_assessment_report
 from agr.service import ValuationService
 from spatial.grid import snap_to_w3w_grid
@@ -205,6 +206,37 @@ def validation_ratio_study(
         "Research structure for professional QA. Synthetic sales make production_ready=false."
     )
     return study
+
+
+@app.get("/validation/ward18-qa-pack")
+def ward18_qa_pack(
+    samples: int = Query(default=10, ge=3, le=24),
+    scenario: str = Query(default="full_agr"),
+) -> dict:
+    """Combined professional QA pack for Glasgow Ward 18 (research)."""
+    if not WARD_18_GEOJSON.exists():
+        raise HTTPException(status_code=503, detail="Glasgow Ward 18 boundary not built yet.")
+    from validation.glasgow_ward_18 import _sample_points_in_ward
+
+    spatial = run_validation(sample_count=samples)
+    points = _sample_points_in_ward(samples)
+    ratios = ratio_study_points(points, scenario=scenario)
+    roll_rows = assess_points(points, scenario=scenario, include_sales=True)
+    meta = batch_meta(roll_rows, scenario=scenario)
+    return {
+        "area": "glasgow_ward_18",
+        "label": "East Centre — featured validation case study",
+        "status": "research_estimate",
+        "not_statutory": True,
+        "spatial_validation": spatial,
+        "ratio_study": ratios,
+        "mini_roll": {"meta": meta, "rows": roll_rows},
+        "next_steps": [
+            "Ingest ROS/licensed sales to data/licensed/sales.jsonl",
+            "Re-run QA pack until production_ready on ratio_study",
+            "Optional OpenAVMKit pilot on the same points",
+        ],
+    }
 
 
 @app.get("/assessment/report")

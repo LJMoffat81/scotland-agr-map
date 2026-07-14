@@ -13,7 +13,7 @@ from spatial.grid import snap_to_w3w_grid
 from spatial.w3w import try_coordinates_to_words
 
 
-API_VERSION = "0.7.0"
+API_VERSION = "0.7.1"
 
 
 def build_assessment_report(

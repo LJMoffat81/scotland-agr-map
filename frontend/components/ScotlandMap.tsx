@@ -359,14 +359,14 @@ export default function ScotlandMap() {
     }
   };
 
-  const downloadReport = async () => {
+  const downloadReport = async (format: "markdown" | "json") => {
     if (!result) return;
     setReportDownloading(true);
     setError(null);
     try {
       const q =
         `${API_URL}/assessment/report?lat=${result.square.lat}&lng=${result.square.lng}` +
-        `&scenario=${scenario}&format=markdown` +
+        `&scenario=${scenario}&format=${format === "json" ? "json" : "markdown"}` +
         (includeSales ? "&include_sales_context=true" : "") +
         sensitivityQuery();
       const response = await fetch(q);
@@ -374,18 +374,66 @@ export default function ScotlandMap() {
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload.detail ?? "Failed to download report");
       }
-      const text = await response.text();
-      const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `scotland-agr-${result.square.lat.toFixed(5)}_${result.square.lng.toFixed(5)}.md`;
-      a.click();
-      URL.revokeObjectURL(url);
+      const base = `scotland-agr-${result.square.lat.toFixed(5)}_${result.square.lng.toFixed(5)}`;
+      if (format === "json") {
+        const data = await response.json();
+        const blob = new Blob([JSON.stringify(data, null, 2)], {
+          type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${base}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const text = await response.text();
+        const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${base}.md`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Report download failed");
     } finally {
       setReportDownloading(false);
+    }
+  };
+
+  const downloadWard18Qa = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(
+        `${API_URL}/validation/ward18-qa-pack?samples=10&scenario=${scenario}`,
+      );
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.detail ?? "Ward 18 QA pack failed");
+      }
+      const data = await response.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "scotland-agr-ward18-qa-pack.json";
+      a.click();
+      URL.revokeObjectURL(url);
+      const meta = data.mini_roll?.meta;
+      if (meta?.agr_mean_gbp != null) {
+        setWardStory(
+          `Ward 18 QA pack downloaded · mini-roll n=${meta.count} · cell AGR mean £${meta.agr_mean_gbp}/yr (research, not statutory).`,
+        );
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "QA pack failed");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -424,6 +472,14 @@ export default function ScotlandMap() {
                 onClick={goWard18}
               >
                 Featured: Glasgow Ward 18
+              </button>
+              <button
+                type="button"
+                className="scenario-tab"
+                disabled={loading}
+                onClick={() => void downloadWard18Qa()}
+              >
+                Download Ward 18 QA pack (JSON)
               </button>
             </div>
           </div>
@@ -624,7 +680,7 @@ export default function ScotlandMap() {
                 what3words={result.what3words}
                 w3wConfigured={result.w3w_configured}
                 salesContext={result.sales_context}
-                onDownloadReport={() => void downloadReport()}
+                onDownloadReport={(fmt) => void downloadReport(fmt)}
                 reportDownloading={reportDownloading}
               />
             )}

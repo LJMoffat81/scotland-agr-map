@@ -92,7 +92,10 @@ Docs: http://127.0.0.1:8000/docs
 | `GET /square` | AGR for a point / W3W cell |
 | `GET /assessment/report` | Professional JSON or markdown report (`format=markdown`) |
 | `GET /validation/ratio-study` | Residual vs sales-comp ratios (Ward 18 samples) |
+| `GET /validation/ward18-qa-pack` | Full Ward 18 QA: spatial + ratios + mini-roll |
 | `GET /sales/status` | Sales pipeline status |
+
+Ops: [docs/OPERATING.md](docs/OPERATING.md) · `.\scripts\run_professional_local.ps1`
 
 ### Professional workflow
 

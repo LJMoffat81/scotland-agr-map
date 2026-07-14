@@ -313,6 +313,17 @@ button.primary:disabled {
   color: #8a6d1b;
 }
 
+.download-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.download-row .primary {
+  width: 100%;
+}
+
 input[type="range"] {
   width: 100%;
 }
