@@ -109,26 +109,38 @@ export default function ScotlandMap() {
       });
       map.flyTo({ center: [payload.square.lng, payload.square.lat], zoom: 16 });
     }
+
+    // Shareable deep link (lat/lng only — scenarios switch client-side)
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("lat", payload.square.lat.toFixed(6));
+      url.searchParams.set("lng", payload.square.lng.toFixed(6));
+      window.history.replaceState({}, "", url.toString());
+    }
   }, []);
 
-  const fetchSquare = async (nextLat: number, nextLng: number) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(
-        `${API_URL}/square?lat=${nextLat}&lng=${nextLng}&scenario=${scenario}`,
-      );
-      if (!response.ok) {
-        const payload = await response.json();
-        throw new Error(payload.detail ?? "Failed to fetch AGR estimate");
+  const fetchSquare = useCallback(
+    async (nextLat: number, nextLng: number, nextScenario?: ScenarioId) => {
+      setLoading(true);
+      setError(null);
+      const sc = nextScenario ?? scenario;
+      try {
+        const response = await fetch(
+          `${API_URL}/square?lat=${nextLat}&lng=${nextLng}&scenario=${sc}`,
+        );
+        if (!response.ok) {
+          const payload = await response.json();
+          throw new Error(payload.detail ?? "Failed to fetch AGR estimate");
+        }
+        applyResult((await response.json()) as SquareResponse);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unknown error");
+      } finally {
+        setLoading(false);
       }
-      applyResult((await response.json()) as SquareResponse);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [applyResult, scenario],
+  );
 
   const fetchPostcode = async (rawPostcode: string) => {
     setLoading(true);
@@ -220,6 +232,14 @@ export default function ScotlandMap() {
         source: "selected-square",
         paint: { "line-color": "#c8102e", "line-width": 2 },
       });
+
+      // Deep link or default Edinburgh demo
+      const params = new URLSearchParams(window.location.search);
+      const qLat = params.get("lat");
+      const qLng = params.get("lng");
+      if (qLat && qLng) {
+        void fetchSquare(Number(qLat), Number(qLng));
+      }
     });
 
     map.on("click", (event) => {
@@ -231,6 +251,8 @@ export default function ScotlandMap() {
       map.remove();
       mapRef.current = null;
     };
+    // Intentionally mount-once for the map; fetchSquare is stable enough via scenario default
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -274,116 +296,162 @@ export default function ScotlandMap() {
     void syncLayers();
   }, [showCouncils, showWard18]);
 
+  const goWard18 = () => {
+    setShowWard18(true);
+    // East Centre, Glasgow approximate centroid
+    void fetchSquare(55.857, -4.198);
+  };
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
           <h1>Scotland AGR Map</h1>
-          <p>Annual Ground Rent for every 3×3 m square</p>
-        </div>
-
-        <div className="panel">
-          <h2>Map layers</h2>
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={showCouncils}
-              onChange={(e) => setShowCouncils(e.target.checked)}
-            />
-            Council boundaries
-          </label>
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={showWard18}
-              onChange={(e) => setShowWard18(e.target.checked)}
-            />
-            Glasgow Ward 18 (East Centre)
-          </label>
-        </div>
-
-        <div className="panel">
-          <h2>What3Words</h2>
-          <div className="field">
-            <label htmlFor="words">///words.here.now</label>
-            <input
-              id="words"
-              value={words}
-              onChange={(event) => setWords(event.target.value)}
-            />
-          </div>
-          <button
-            className="primary"
-            disabled={loading}
-            onClick={() => void fetchWords(words)}
-          >
-            {loading ? "Resolving…" : "Search W3W"}
-          </button>
-          <p className="meta" style={{ marginTop: "0.75rem" }}>
-            Requires W3W_API_KEY on the backend (SLRG nonprofit application).
+          <p>
+            See the community-created Annual Ground Rent under any place in Scotland —
+            research estimate for education, not a tax bill.
           </p>
         </div>
 
-        <div className="panel">
-          <h2>Search postcode</h2>
-          <div className="field">
-            <label htmlFor="postcode">Postcode</label>
-            <input
-              id="postcode"
-              value={postcode}
-              onChange={(event) => setPostcode(event.target.value)}
-            />
+        <div className="sidebar-scroll">
+          <div className="panel">
+            <h2>Explore</h2>
+            <p className="idle-hint">
+              <strong>Click the map</strong> or search a postcode. Start with Edinburgh or
+              Glasgow Ward 18.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem", marginTop: "0.75rem" }}>
+              <button
+                className="primary"
+                type="button"
+                disabled={loading}
+                onClick={() => void fetchSquare(55.9533, -3.1883)}
+              >
+                Demo: Edinburgh centre
+              </button>
+              <button
+                className="primary"
+                type="button"
+                disabled={loading}
+                style={{ background: "#001a3a" }}
+                onClick={goWard18}
+              >
+                Featured: Glasgow Ward 18
+              </button>
+            </div>
           </div>
-          <button
-            className="primary"
-            disabled={loading}
-            onClick={() => void fetchPostcode(postcode)}
-          >
-            {loading ? "Looking up…" : "Search postcode"}
-          </button>
-        </div>
 
-        <div className="panel">
-          <h2>Search coordinates</h2>
-          <div className="field">
-            <label htmlFor="lat">Latitude</label>
-            <input id="lat" value={lat} onChange={(e) => setLat(e.target.value)} />
-          </div>
-          <div className="field">
-            <label htmlFor="lng">Longitude</label>
-            <input id="lng" value={lng} onChange={(e) => setLng(e.target.value)} />
-          </div>
-          <button
-            className="primary"
-            disabled={loading}
-            onClick={() => void fetchSquare(Number(lat), Number(lng))}
-          >
-            {loading ? "Calculating…" : "Estimate AGR"}
-          </button>
-        </div>
+          <div className="panel find-place">
+            <details open={!result}>
+              <summary>Find a place</summary>
+              <div className="field" style={{ marginTop: "0.75rem" }}>
+                <label htmlFor="postcode">Postcode</label>
+                <input
+                  id="postcode"
+                  value={postcode}
+                  onChange={(event) => setPostcode(event.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void fetchPostcode(postcode);
+                  }}
+                />
+              </div>
+              <button
+                className="primary"
+                disabled={loading}
+                onClick={() => void fetchPostcode(postcode)}
+              >
+                {loading ? "Looking up…" : "Search postcode"}
+              </button>
 
-        <div className="panel">
-          <h2>AGR result</h2>
-          {error && <p className="meta">{error}</p>}
-          {!error && !result && (
-            <p className="meta">Click the map or search to begin.</p>
-          )}
-          {result && (
-            <AgrBreakdown
-              agr={result.agr}
-              areaSqm={result.square.area_sqm}
-              scenario={scenario}
-              onScenarioChange={setScenario}
-              postcode={result.postcode?.postcode}
-              lat={result.square.lat}
-              lng={result.square.lng}
-            />
-          )}
+              <details style={{ marginTop: "0.85rem" }}>
+                <summary style={{ fontSize: "0.85rem" }}>Coordinates or What3Words</summary>
+                <div className="field" style={{ marginTop: "0.65rem" }}>
+                  <label htmlFor="lat">Latitude</label>
+                  <input id="lat" value={lat} onChange={(e) => setLat(e.target.value)} />
+                </div>
+                <div className="field">
+                  <label htmlFor="lng">Longitude</label>
+                  <input id="lng" value={lng} onChange={(e) => setLng(e.target.value)} />
+                </div>
+                <button
+                  className="primary"
+                  disabled={loading}
+                  onClick={() => void fetchSquare(Number(lat), Number(lng))}
+                >
+                  {loading ? "Calculating…" : "Estimate AGR"}
+                </button>
+                <div className="field" style={{ marginTop: "0.75rem" }}>
+                  <label htmlFor="words">What3Words</label>
+                  <input
+                    id="words"
+                    value={words}
+                    onChange={(event) => setWords(event.target.value)}
+                  />
+                </div>
+                <button
+                  className="primary"
+                  disabled={loading}
+                  onClick={() => void fetchWords(words)}
+                >
+                  {loading ? "Resolving…" : "Search W3W"}
+                </button>
+                <p className="meta" style={{ marginTop: "0.5rem" }}>
+                  W3W needs a backend API key (optional).
+                </p>
+              </details>
+            </details>
+          </div>
+
+          <div className="panel">
+            <details>
+              <summary style={{ fontWeight: 600, cursor: "pointer", color: "var(--slrg-navy)" }}>
+                Map layers
+              </summary>
+              <label className="checkbox-row" style={{ marginTop: "0.65rem" }}>
+                <input
+                  type="checkbox"
+                  checked={showCouncils}
+                  onChange={(e) => setShowCouncils(e.target.checked)}
+                />
+                Council boundaries
+              </label>
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={showWard18}
+                  onChange={(e) => setShowWard18(e.target.checked)}
+                />
+                Glasgow Ward 18 (East Centre)
+              </label>
+            </details>
+          </div>
+
+          <div className="panel">
+            <h2>Result</h2>
+            {error && <p className="meta">{error}</p>}
+            {!error && !result && (
+              <p className="idle-hint">
+                Click the map or use Explore above. You&apos;ll get a plain £/year estimate
+                and optional detail on how it was calculated.
+              </p>
+            )}
+            {result && (
+              <AgrBreakdown
+                agr={result.agr}
+                areaSqm={result.square.area_sqm}
+                scenario={scenario}
+                onScenarioChange={setScenario}
+                postcode={result.postcode?.postcode}
+                lat={result.square.lat}
+                lng={result.square.lng}
+              />
+            )}
+          </div>
         </div>
 
         <div className="footer-links">
           <a href="https://www.slrg.scot" target="_blank" rel="noreferrer">
-            SLRG Home
+            SLRG
           </a>
           {" · "}
           <a href="/methodology">Methodology</a>
@@ -391,7 +459,7 @@ export default function ScotlandMap() {
             <>
               {" · "}
               <span className={`signoff-badge signoff-${signoffStatus}`}>
-                Economist: {signoffStatus}
+                {signoffStatus}
               </span>
             </>
           )}
@@ -400,6 +468,11 @@ export default function ScotlandMap() {
 
       <div className="map-wrap">
         <div id="map" ref={mapContainer} />
+        {!result && (
+          <div className="map-hint">
+            Click anywhere in Scotland to estimate Annual Ground Rent
+          </div>
+        )}
       </div>
     </div>
   );

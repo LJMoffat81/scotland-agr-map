@@ -26,6 +26,8 @@ Also see: Mill, Paine, **School of Cooperative Individualism** (Georgist source 
 
 **Integrity:** map residual £ figures are a research estimate (not a rates bill). The Sandilands national rent pool is a separate macro concept used for equal-share and income-tax scaling — map squares are not calibrated to sum to that pool. See methodology “Two rent concepts”.
 
+**Product clarity:** the map default is a plain £/year estimate and short policy choices; valuer steps, integrity caveats, and full lineage live under **How calculated** / **About AGR** and [methodology](docs/methodology.md).
+
 Built for [SLRG](https://www.slrg.scot) as a standalone public education and advocacy tool.
 
 ## Stack

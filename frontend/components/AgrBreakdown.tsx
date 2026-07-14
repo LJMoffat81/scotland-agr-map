@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 export type ScenarioId = "full_agr" | "replace_income_tax" | "revenue_neutral";
 
 export type ScenarioCharge = {
@@ -65,21 +67,46 @@ type Props = {
   lng: number;
 };
 
+type DetailTab = "summary" | "calculate" | "about";
+
 const SCENARIO_ORDER: ScenarioId[] = [
   "full_agr",
   "replace_income_tax",
   "revenue_neutral",
 ];
 
-function formatGbp(value: number) {
+/** Short public-facing labels (full labels remain in API). */
+const SCENARIO_SHORT: Record<ScenarioId, string> = {
+  full_agr: "Full ground rent",
+  replace_income_tax: "Replace income tax",
+  revenue_neutral: "Replace CT + rates",
+};
+
+const SCENARIO_PLAIN: Record<ScenarioId, string> = {
+  full_agr:
+    "Charge the full estimated annual rent of the land alone — the community-created surplus.",
+  replace_income_tax:
+    "Scale that rent so Scotland could replace income tax from the national rent pool (Sandilands).",
+  revenue_neutral:
+    "A lower rate on land capital, sized to replace council tax and business rates (Wightman-style).",
+};
+
+function formatGbp(value: number, digits = 2) {
   return `£${value.toLocaleString("en-GB", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
   })}`;
 }
 
 function formatGbpBn(value: number) {
   return `£${(value / 1_000_000_000).toFixed(0)}bn`;
+}
+
+function plainWhy(agr: AgrResult): string {
+  if (agr.method === "residual_drc") {
+    return "This estimate separates the value of the land from the buildings (valuer residual), then charges the economic rent of the site — not wages, and not bricks and mortar.";
+  }
+  return "This estimate uses productive land value for rural land, then charges the economic rent of the site — not wages, and not buildings.";
 }
 
 export default function AgrBreakdown({
@@ -91,18 +118,54 @@ export default function AgrBreakdown({
   lat,
   lng,
 }: Props) {
+  const [tab, setTab] = useState<DetailTab>("summary");
   const active = agr.scenarios[scenario];
   const isResidual = agr.method === "residual_drc";
 
+  // Household-relevant headline when we have a notional plot; scale scenario rate to plot
+  const plotFull = agr.roll_annual_rent_notional_plot_gbp;
+  const cellFull = agr.economic_annual_rent_gbp;
+  const scale =
+    cellFull > 0 ? active.annual_charge_gbp / cellFull : 1;
+  const headline =
+    plotFull != null && plotFull > 0
+      ? plotFull * scale
+      : active.annual_charge_gbp;
+  const headlineIsPlot = plotFull != null && plotFull > 0;
+
+  const locationLine = [
+    postcode,
+    agr.council_name,
+    agr.ward_name ? `Ward: ${agr.ward_name}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
-    <>
-      <p className="integrity-banner" role="note">
-        {agr.estimate_label ?? "Valuer residual AGR roll"} — open-data approximation of
-        how a valuer would assess site rent for an AGR roll (MV − DRC → economic base →
-        yield). Not an official rates bill.
+    <div className="clarity-result">
+      <p className="pitch">
+        Scotland&apos;s land has an annual rental value the community creates. Here is an
+        estimate of that <strong>Annual Ground Rent</strong> for this place.
       </p>
 
-      <div className="scenario-tabs" role="tablist" aria-label="AGR policy scenario">
+      <p className="location-line">
+        {locationLine || `${lat.toFixed(5)}, ${lng.toFixed(5)}`}
+      </p>
+
+      <div className="agr-value" aria-live="polite">
+        {formatGbp(headline, headline >= 100 ? 0 : 2)}
+        <span className="agr-unit">/year</span>
+      </div>
+      <p className="headline-caption">
+        {headlineIsPlot
+          ? `Typical plot-scale estimate (~${agr.notional_plot_sqm?.toLocaleString("en-GB")} m²) under “${SCENARIO_SHORT[scenario]}”`
+          : `For this ${areaSqm} m² map cell under “${SCENARIO_SHORT[scenario]}”`}
+      </p>
+
+      <p className="plain-why">{SCENARIO_PLAIN[scenario]}</p>
+      <p className="plain-why secondary">{plainWhy(agr)}</p>
+
+      <div className="scenario-tabs" role="tablist" aria-label="Policy design">
         {SCENARIO_ORDER.map((id) => (
           <button
             key={id}
@@ -112,190 +175,188 @@ export default function AgrBreakdown({
             className={scenario === id ? "scenario-tab active" : "scenario-tab"}
             onClick={() => onScenarioChange(id)}
           >
-            {agr.scenarios[id].label}
+            {SCENARIO_SHORT[id]}
           </button>
         ))}
       </div>
 
-      <p className="meta" style={{ marginTop: "0.75rem" }}>
-        {active.description}
-      </p>
+      {headlineIsPlot && (
+        <p className="meta cell-secondary">
+          Map cell ({areaSqm} m²): {formatGbp(active.annual_charge_gbp)}/year · same rate
+          per square metre
+        </p>
+      )}
 
-      <div className="agr-value">
-        {formatGbp(active.annual_charge_gbp)}
-        <span className="agr-unit">/year</span>
+      <div className="detail-tabs" role="tablist" aria-label="Result details">
+        {(
+          [
+            ["summary", "Summary"],
+            ["calculate", "How calculated"],
+            ["about", "About AGR"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            className={tab === id ? "detail-tab active" : "detail-tab"}
+            onClick={() => setTab(id)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
-      <p className="meta" style={{ marginTop: "0.25rem" }}>
-        Scenario charge for this {areaSqm} m² grid cell
-      </p>
 
-      <table className="breakdown-table">
-        <tbody>
-          <tr>
-            <th>Location</th>
-            <td>
-              {postcode && <>{postcode} · </>}
-              {lat.toFixed(6)}, {lng.toFixed(6)} ({areaSqm} m²)
-            </td>
-          </tr>
-          <tr>
-            <th>Council</th>
-            <td>
-              {agr.council_name} ({agr.council_code}) · {agr.lookup_method}
-            </td>
-          </tr>
-          {agr.ward_name && (
-            <tr>
-              <th>Ward</th>
-              <td>{agr.ward_name}</td>
-            </tr>
-          )}
-          {agr.parcel_id && (
-            <tr>
-              <th>Cadastral parcel</th>
-              <td>
-                {agr.parcel_id}
+      {tab === "summary" && (
+        <div className="detail-panel">
+          <ul className="summary-list">
+            <li>
+              <strong>Council:</strong> {agr.council_name}
+            </li>
+            {agr.parcel_id && (
+              <li>
+                <strong>Parcel:</strong> {agr.parcel_id}
                 {agr.parcel_area_sqm
                   ? ` (${agr.parcel_area_sqm.toLocaleString("en-GB")} m²)`
                   : ""}
-              </td>
-            </tr>
-          )}
-          <tr>
-            <th>HABU</th>
-            <td>
-              {agr.habu ?? "—"}
-              {agr.hope_value_excluded ? " · hope value excluded from basis" : ""}
-            </td>
-          </tr>
-          {isResidual && agr.market_value_gbp != null && (
-            <tr>
-              <th>1. Market value</th>
-              <td>
-                {formatGbp(agr.market_value_gbp)} (typical dwelling, council HPI)
-              </td>
-            </tr>
-          )}
-          {isResidual && agr.rebuild_cost_new_gbp != null && (
-            <tr>
-              <th>2. Rebuild (new)</th>
-              <td>{formatGbp(agr.rebuild_cost_new_gbp)}</td>
-            </tr>
-          )}
-          {isResidual && agr.drc_improvements_gbp != null && (
-            <tr>
-              <th>3. DRC improvements</th>
-              <td>
-                {formatGbp(agr.drc_improvements_gbp)} (depreciated rebuild of buildings)
-              </td>
-            </tr>
-          )}
-          <tr>
-            <th>4. Site capital (market residual)</th>
-            <td>
+              </li>
+            )}
+            {agr.roll_annual_rent_parcel_gbp != null && (
+              <li>
+                <strong>Parcel roll line:</strong>{" "}
+                {formatGbp(agr.roll_annual_rent_parcel_gbp * scale)}/year (this scenario)
+              </li>
+            )}
+            <li>
+              <strong>Confidence:</strong> {agr.confidence} · {agr.method}
+            </li>
+          </ul>
+          <p className="meta tight">
+            Research estimate for education — not an official tax bill. National rent-pool
+            figures (Sandilands) are separate from this map residual.
+          </p>
+          <p className="meta tight">
+            <a href="/methodology">Full methodology &amp; sources</a>
+          </p>
+        </div>
+      )}
+
+      {tab === "calculate" && (
+        <div className="detail-panel">
+          <ol className="calc-steps">
+            <li>
+              <strong>HABU</strong> — {agr.habu ?? "existing use"}
+              {agr.hope_value_excluded ? " (hope value excluded from basis)" : ""}
+            </li>
+            {isResidual && agr.market_value_gbp != null && (
+              <li>
+                <strong>Market value</strong> — {formatGbp(agr.market_value_gbp)} (typical
+                dwelling, council HPI)
+              </li>
+            )}
+            {isResidual && agr.drc_improvements_gbp != null && (
+              <li>
+                <strong>Buildings (DRC)</strong> — {formatGbp(agr.drc_improvements_gbp)}{" "}
+                depreciated rebuild, stripped from MV
+              </li>
+            )}
+            <li>
+              <strong>Site capital (market residual)</strong> —{" "}
               {formatGbp(agr.site_capital_market_per_sqm_gbp ?? agr.site_capital_per_sqm_gbp)}
               /m²
               {agr.site_share_used != null
-                ? ` · implied land share ${(agr.site_share_used * 100).toFixed(0)}% of MV`
+                ? ` (${(agr.site_share_used * 100).toFixed(0)}% of MV)`
                 : ""}
-            </td>
-          </tr>
-          <tr>
-            <th>5. Site capital (economic)</th>
-            <td>
-              {formatGbp(agr.despeculated_site_capital_per_sqm_gbp)}/m² after Pickard
+            </li>
+            <li>
+              <strong>Economic site capital (Pickard)</strong> —{" "}
+              {formatGbp(agr.despeculated_site_capital_per_sqm_gbp)}/m²
               {agr.pickard_factor != null
-                ? ` ×${(agr.pickard_factor * 100).toFixed(0)}% (${agr.pickard_label ?? "factor"})`
+                ? ` × ${(agr.pickard_factor * 100).toFixed(0)}%`
                 : ""}
-            </td>
-          </tr>
-          <tr>
-            <th>6. Annual economic rent</th>
-            <td>
-              {formatGbp(agr.site_rental_per_sqm_gbp)}/m²/year · yield{" "}
-              {(agr.yield_rate * 100).toFixed(1)}%
-            </td>
-          </tr>
-          <tr>
-            <th>Grid cell roll line</th>
-            <td>
-              {formatGbp(agr.economic_annual_rent_gbp)}/year on {areaSqm} m² (full AGR)
-            </td>
-          </tr>
-          {agr.roll_annual_rent_notional_plot_gbp != null && (
-            <tr>
-              <th>Notional plot roll line</th>
-              <td>
-                {formatGbp(agr.roll_annual_rent_notional_plot_gbp)}/year on{" "}
-                {agr.notional_plot_sqm?.toLocaleString("en-GB") ?? "—"} m² plot
-              </td>
-            </tr>
-          )}
-          {agr.roll_annual_rent_parcel_gbp != null && (
-            <tr>
-              <th>Parcel roll line</th>
-              <td>
-                {formatGbp(agr.roll_annual_rent_parcel_gbp)}/year on cadastral parcel
-              </td>
-            </tr>
-          )}
+            </li>
+            <li>
+              <strong>Annual rent</strong> — {formatGbp(agr.site_rental_per_sqm_gbp)}
+              /m² at {(agr.yield_rate * 100).toFixed(0)}% yield
+            </li>
+            <li>
+              <strong>This scenario</strong> — {active.label}:{" "}
+              {formatGbp(active.annual_charge_gbp)}/year on {areaSqm} m² cell
+            </li>
+          </ol>
           {agr.national_rent_pool_gbp != null && (
-            <tr>
-              <th>National rent pool</th>
-              <td>
-                {formatGbpBn(agr.national_rent_pool_gbp)}/year (Sandilands macro — not sum
-                of roll cells)
-              </td>
-            </tr>
+            <p className="meta">
+              National rent pool (Sandilands macro): {formatGbpBn(agr.national_rent_pool_gbp)}
+              /year — used for income-tax scaling and equal-share only, not the sum of map
+              cells.
+            </p>
           )}
+          <details className="notes-details">
+            <summary>Technical notes</summary>
+            <ul>
+              {agr.notes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+          </details>
+          {agr.integrity_caveats && agr.integrity_caveats.length > 0 && (
+            <details className="notes-details">
+              <summary>Integrity caveats</summary>
+              <ul>
+                {agr.integrity_caveats.map((caveat) => (
+                  <li key={caveat}>{caveat}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
+
+      {tab === "about" && (
+        <div className="detail-panel">
+          <p>
+            <strong>Annual Ground Rent (AGR)</strong> is a charge on the rental value of
+            land alone. Buildings and work stay untaxed. SLRG prefers “AGR” to “land value
+            tax” to stress recovery of community-created rent.
+          </p>
+          <ul className="summary-list">
+            <li>
+              <strong>Wightman</strong> — residual site value (land after buildings)
+            </li>
+            <li>
+              <strong>Pickard</strong> — economic rent after speculative premium
+            </li>
+            <li>
+              <strong>Sandilands</strong> — Scotland rent pool and tax-shift designs
+            </li>
+          </ul>
+          <p className="meta">
+            Classical and modern land-rent thinkers (Smith, George, Unitism, and others)
+            are documented on the methodology page — not required to read the map.
+          </p>
           {agr.equal_share_enabled &&
             agr.equal_share_rent_per_person_gbp != null &&
             agr.square_as_fraction_of_equal_claim != null && (
-              <tr>
-                <th>Equal share (Ogilvie / Paine / Unitism)</th>
-                <td>
-                  One Scot ≈ {formatGbp(agr.equal_share_rent_per_person_gbp)}/year from
-                  national pool
-                  {agr.scotland_population
-                    ? ` (${agr.scotland_population.toLocaleString("en-GB")} people)`
-                    : ""}
-                  ; this cell is{" "}
-                  {(agr.square_as_fraction_of_equal_claim * 100).toFixed(4)}% of that claim
-                  (services or citizen dividend framing)
-                </td>
-              </tr>
+              <p className="meta">
+                Equal-share framing: one Scot ≈{" "}
+                {formatGbp(agr.equal_share_rent_per_person_gbp, 0)}/year from the national
+                pool; this cell&apos;s full economic rent is{" "}
+                {(agr.square_as_fraction_of_equal_claim * 100).toFixed(4)}% of that claim
+                (could fund services or a citizen dividend).
+              </p>
             )}
-          <tr>
-            <th>Method</th>
-            <td>
-              {agr.method} · {agr.confidence} confidence
-              {agr.estimate_kind ? ` · ${agr.estimate_kind}` : ""}
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <details className="notes-details">
-        <summary>Valuation notes &amp; lineage</summary>
-        <ul>
-          {agr.notes.map((note) => (
-            <li key={note}>{note}</li>
-          ))}
-        </ul>
-      </details>
-
-      {agr.integrity_caveats && agr.integrity_caveats.length > 0 && (
-        <details className="notes-details">
-          <summary>Integrity caveats</summary>
-          <ul>
-            {agr.integrity_caveats.map((caveat) => (
-              <li key={caveat}>{caveat}</li>
-            ))}
-          </ul>
-        </details>
+          <p className="meta tight">
+            <a href="/methodology">Read the full methodology</a>
+            {" · "}
+            <a href="https://www.slrg.scot" target="_blank" rel="noreferrer">
+              SLRG
+            </a>
+          </p>
+        </div>
       )}
 
-      <p className="meta">{agr.disclaimer}</p>
-    </>
+      <p className="meta disclaimer-line">{agr.disclaimer}</p>
+    </div>
   );
 }
