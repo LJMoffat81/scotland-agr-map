@@ -17,6 +17,7 @@ from pyproj import Transformer
 from shapely.geometry import shape
 from shapely.ops import transform
 
+from agr.fiscal import place_fiscal
 from agr.service import ValuationService
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -80,6 +81,23 @@ METRIC_DEFS: dict[str, dict[str, Any]] = {
         "unit": "people/km²",
         "group": "context",
         "description": "NRS population ÷ council land area — pressure on land.",
+    },
+    "net_contribution": {
+        "property": "net_contribution_plot_gbp",
+        "label": "Net fiscal position",
+        "unit": "£/year net",
+        "group": "fiscal",
+        "description": (
+            "Plot gross AGR − equal dividend − remote credit. "
+            "Positive = funds the state; negative = net receiver (remote/low rent)."
+        ),
+    },
+    "gross_liability": {
+        "property": "gross_plot_liability_gbp",
+        "label": "Who pays most (gross)",
+        "unit": "£/year gross",
+        "group": "fiscal",
+        "description": "Gross plot AGR under active scenario — highest-rent places pay most.",
     },
 }
 
@@ -146,6 +164,17 @@ def build_council_metrics_geojson(scenario: str = "full_agr") -> dict[str, Any]:
         if breakdown.site_share_used is not None:
             site_share_pct = round(100.0 * float(breakdown.site_share_used), 1)
 
+        # Scenario-scaled plot liability + net fiscal position
+        cell_full = float(breakdown.economic_annual_rent_gbp or 0)
+        active_cell = float(breakdown.annual_ground_rent_gbp or 0)
+        scale = (active_cell / cell_full) if cell_full > 0 else 1.0
+        gross_plot = float(plot or 0) * scale
+        fiscal_place = place_fiscal(
+            gross_plot_gbp=gross_plot,
+            council_code=code,
+            scenario=scenario,
+        )
+
         ctx = context.get(str(code)) or {}
         population = ctx.get("population")
         simd = ctx.get("simd_pct_20most_deprived")
@@ -181,6 +210,12 @@ def build_council_metrics_geojson(scenario: str = "full_agr") -> dict[str, Any]:
                         ),
                         2,
                     ),
+                    # Fiscal metrics
+                    "gross_plot_liability_gbp": fiscal_place["gross_plot_gbp"],
+                    "net_contribution_plot_gbp": fiscal_place["net_gbp"],
+                    "fiscal_role": fiscal_place["role"],
+                    "dividend_gbp": fiscal_place["dividend_gbp"],
+                    "remote_credit_gbp": fiscal_place["remote_credit_gbp"],
                     # Context metrics
                     "population": population,
                     "area_km2": round(area_km2, 1),

@@ -132,6 +132,102 @@ input {
   padding: 0.6rem 0.9rem;
 }
 
+/* —— Fiscal dashboard (politicians) —— */
+.fiscal-dash {
+  flex-shrink: 0;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid #d9e2ec;
+  background: #f0f4f8;
+}
+
+.fiscal-dash.surplus {
+  background: #e8f5e9;
+  border-bottom-color: #a5d6a7;
+}
+
+.fiscal-dash.shortfall {
+  background: #fdecea;
+  border-bottom-color: #f5c6cb;
+}
+
+.fiscal-dash-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--slrg-muted);
+  margin-bottom: 0.4rem;
+}
+
+.fiscal-dash-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.35rem;
+}
+
+.fiscal-dash-grid .fd-label {
+  display: block;
+  font-size: 0.68rem;
+  color: var(--slrg-muted);
+}
+
+.fiscal-dash-grid .fd-value {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--slrg-navy);
+}
+
+.fiscal-dash-note {
+  margin: 0.4rem 0 0;
+  font-size: 0.72rem;
+  color: var(--slrg-muted);
+  line-height: 1.35;
+}
+
+.fiscal-place {
+  background: #f7f9fc;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  margin: 0 0 0.75rem;
+}
+
+.fiscal-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  padding: 0.2rem 0;
+  color: var(--slrg-text);
+}
+
+.fiscal-row.net {
+  border-top: 1px solid #d9e2ec;
+  margin-top: 0.25rem;
+  padding-top: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.fiscal-row.net.contributor strong {
+  color: #b35806;
+}
+
+.fiscal-row.net.receiver strong {
+  color: #01665e;
+}
+
+.fiscal-role-tag {
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+  color: var(--slrg-muted);
+  line-height: 1.35;
+}
+
+.story-chips {
+  margin-bottom: 0.55rem;
+}
+
 .layer-panel {
   margin-top: 0.75rem;
   padding-top: 0.65rem;

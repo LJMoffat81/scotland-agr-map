@@ -93,6 +93,20 @@ Category £/ha (2009 land-use table) × HPI factor
 
 Marginal land: near-zero rent after wages and capital (Ricardo).
 
+## Fiscal tool (tax replacement for decision-makers)
+
+The map can be used as a **fiscal incidence instrument**:
+
+1. **Taxes to replace** — configurable basket (income tax + Council Tax + NDR research totals in `agr.yaml` `fiscal.basket`).
+2. **AGR collection** — under each scenario, how much of the Sandilands **national rent pool** is collected.
+3. **Surplus** — collection − basket (**revenue neutral or better** when ≥ 0). Full economic rent typically shows a large surplus.
+4. **Who pays** — highest land-rent places have the highest **gross** liability (map residual plot AGR).
+5. **Net position** — gross − **equal dividend** (pool ÷ population) − optional **remote/island credit**. Low-rent and remote councils can be **net receivers** (negative net tax), encouraging people to thrive outside the hot core.
+
+Scenarios include **Replace all listed taxes (neutral)** (`replace_full_basket`), full rent with surplus, income tax only, and CT+NDR.
+
+This is **research**, not a live bill. National totals use the macro pool; place figures use the residual roll and are not calibrated to sum to the pool.
+
 ## Two rent concepts (read this)
 
 | Concept | Source | Used for |

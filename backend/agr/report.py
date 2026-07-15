@@ -8,12 +8,13 @@ from typing import Any
 
 from agr.config import load_config
 from agr.engine import AgrBreakdown, breakdown_to_dict
+from agr.fiscal import fiscal_summary, place_fiscal
 from agr.service import ValuationService
 from spatial.grid import snap_to_w3w_grid
 from spatial.w3w import try_coordinates_to_words
 
 
-API_VERSION = "0.8.0"
+API_VERSION = "0.9.0"
 
 
 def build_assessment_report(
@@ -44,12 +45,26 @@ def build_assessment_report(
         f"{issued[:19].replace(':', '').replace('-', '')}Z"
     )
 
+    cell_full = float(breakdown.economic_annual_rent_gbp or 0)
+    active_cell = float(breakdown.annual_ground_rent_gbp or 0)
+    scale = (active_cell / cell_full) if cell_full > 0 else 1.0
+    gross_plot = float(breakdown.roll_annual_rent_notional_plot_gbp or 0) * scale
+    if breakdown.roll_annual_rent_parcel_gbp is not None:
+        gross_plot = float(breakdown.roll_annual_rent_parcel_gbp) * scale
+    fiscal_place = place_fiscal(
+        gross_plot_gbp=gross_plot,
+        council_code=breakdown.council_code,
+        scenario=scenario,
+        config=config,
+    )
+    fiscal_nat = fiscal_summary(scenario, config)
+
     report = {
         "report_id": report_id,
         "issued_at_utc": issued,
         "api_version": API_VERSION,
         "standard": "docs/PROFESSIONAL_STANDARD.md",
-        "product": "Scotland AGR Map — professional residual assessment",
+        "product": "Scotland AGR Map — fiscal tax-replacement research brief",
         "disclaimer": breakdown.disclaimer,
         "status": "research_estimate",
         "not_statutory": True,
@@ -67,6 +82,8 @@ def build_assessment_report(
         },
         "policy_scenario": scenario,
         "assessment": breakdown_to_dict(breakdown),
+        "fiscal_place": fiscal_place,
+        "fiscal_national": fiscal_nat,
         "roll_lines": {
             "grid_cell_annual_gbp": breakdown.annual_ground_rent_gbp,
             "notional_plot_annual_gbp": breakdown.roll_annual_rent_notional_plot_gbp,
@@ -151,12 +168,43 @@ def render_report_markdown(report: dict[str, Any]) -> str:
             f"- **Parcel AGR:** £{roll['parcel_annual_gbp']:,.2f} / year"
         )
 
+    fiscal_p = report.get("fiscal_place") or {}
+    fiscal_n = report.get("fiscal_national") or {}
+    if fiscal_n.get("enabled"):
+        basket = (fiscal_n.get("basket") or {}).get("total_gbp") or 0
+        coll = (fiscal_n.get("collection") or {}).get("annual_gbp") or 0
+        surplus = fiscal_n.get("surplus_gbp") or 0
+        lines += [
+            "",
+            "## National fiscal picture (research)",
+            "",
+            f"- **Taxes to replace (basket):** £{basket / 1e9:.1f}bn / year",
+            f"- **AGR collection (this scenario):** £{coll / 1e9:.1f}bn / year",
+            f"- **Surplus / shortfall:** £{surplus / 1e9:.1f}bn "
+            f"({'neutral or better' if surplus >= 0 else 'shortfall'})",
+            f"- **Equal dividend:** £{(fiscal_n.get('dividend') or {}).get('per_person_gbp', 0):,.0f} / person / year",
+            "",
+            "*National collection uses Sandilands rent pool ratios — not the sum of map residual cells.*",
+        ]
+    if fiscal_p:
+        lines += [
+            "",
+            "## Place fiscal position (plot vs one-person dividend)",
+            "",
+            f"- **Gross land rent:** £{fiscal_p.get('gross_plot_gbp', 0):,.0f} / year",
+            f"- **Equal dividend:** −£{fiscal_p.get('dividend_gbp', 0):,.0f}",
+            f"- **Remote credit:** −£{fiscal_p.get('remote_credit_gbp', 0):,.0f}",
+            f"- **Net:** £{fiscal_p.get('net_gbp', 0):,.0f} / year (**{fiscal_p.get('role')}**)",
+            "",
+            "High land-rent places fund the state; low-rent / remote places can be net receivers.",
+        ]
+
     lines += [
         "",
         "## Residual path",
         "",
         f"- **Method:** {agr.get('method')} · confidence **{agr.get('confidence')}**",
-        f"- **HABU:** {agr.get('habu')}",
+        f"- **HABU:** {agr.get('habu')} (assessment assumption, not planning consent)",
         f"- **Yield:** {100 * float(agr.get('yield_rate') or 0):.1f}%",
         f"- **Site capital (economic):** £{agr.get('despeculated_site_capital_per_sqm_gbp')}/m²",
         f"- **Annual rent (economic):** £{agr.get('site_rental_per_sqm_gbp')}/m²",

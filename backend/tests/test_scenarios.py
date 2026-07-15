@@ -45,7 +45,12 @@ def test_compute_scenarios_returns_three_policies():
         area_sqm=9.0,
         capture_rate=1.0,
     )
-    assert set(charges) == {"full_agr", "replace_income_tax", "revenue_neutral"}
+    assert set(charges) == {
+        "full_agr",
+        "replace_income_tax",
+        "revenue_neutral",
+        "replace_full_basket",
+    }
 
 
 def test_equal_share_fields_present_and_coherent():

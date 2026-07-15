@@ -1,6 +1,10 @@
 "use client";
 
-export type ScenarioId = "full_agr" | "replace_income_tax" | "revenue_neutral";
+export type ScenarioId =
+  | "full_agr"
+  | "replace_income_tax"
+  | "revenue_neutral"
+  | "replace_full_basket";
 
 export type ScenarioCharge = {
   id: ScenarioId;
@@ -80,6 +84,16 @@ export type SalesContext = {
   }>;
 };
 
+export type PlaceFiscal = {
+  gross_plot_gbp: number;
+  dividend_gbp: number;
+  dividend_mode?: string;
+  remote_credit_gbp: number;
+  net_gbp: number;
+  role: "net_contributor" | "net_receiver" | "net_neutral" | string;
+  note?: string;
+};
+
 type Props = {
   agr: AgrResult;
   areaSqm: number;
@@ -91,20 +105,23 @@ type Props = {
   what3words?: string | null;
   parcelLabel?: string | null;
   parcelAreaSqm?: number | null;
+  fiscal?: PlaceFiscal | null;
   onDownloadReport?: (format: "markdown" | "json") => void;
   reportDownloading?: boolean;
 };
 
 const SCENARIO_ORDER: ScenarioId[] = [
+  "replace_full_basket",
   "full_agr",
   "replace_income_tax",
   "revenue_neutral",
 ];
 
 const SCENARIO_SHORT: Record<ScenarioId, string> = {
-  full_agr: "Full rent",
-  replace_income_tax: "Replace income tax",
-  revenue_neutral: "Replace CT + rates",
+  replace_full_basket: "Replace all taxes",
+  full_agr: "Full rent + surplus",
+  replace_income_tax: "Income tax only",
+  revenue_neutral: "CT + rates",
 };
 
 function formatGbp(value: number, digits = 2) {
@@ -125,14 +142,14 @@ export default function AgrBreakdown({
   what3words,
   parcelLabel,
   parcelAreaSqm,
+  fiscal,
   onDownloadReport,
   reportDownloading,
 }: Props) {
-  const active = agr.scenarios[scenario];
+  const active = agr.scenarios[scenario] ?? agr.scenarios.full_agr;
   const plotFull = agr.roll_annual_rent_notional_plot_gbp;
   const cellFull = agr.economic_annual_rent_gbp;
   const scale = cellFull > 0 ? active.annual_charge_gbp / cellFull : 1;
-  // Prefer true cadastral parcel rent when we have the boundary area
   const parcelFull =
     parcelAreaSqm != null && parcelAreaSqm > 0
       ? agr.site_rental_per_sqm_gbp * parcelAreaSqm * scale
@@ -140,18 +157,29 @@ export default function AgrBreakdown({
         ? agr.roll_annual_rent_parcel_gbp * scale
         : null;
   const headline =
-    parcelFull != null && parcelFull > 0
-      ? parcelFull
-      : plotFull != null && plotFull > 0
-        ? plotFull * scale
-        : active.annual_charge_gbp;
-  const headlineIsParcel = parcelFull != null && parcelFull > 0;
-  const headlineIsPlot = !headlineIsParcel && plotFull != null && plotFull > 0;
+    fiscal?.gross_plot_gbp != null && fiscal.gross_plot_gbp > 0
+      ? fiscal.gross_plot_gbp
+      : parcelFull != null && parcelFull > 0
+        ? parcelFull
+        : plotFull != null && plotFull > 0
+          ? plotFull * scale
+          : active.annual_charge_gbp;
+  const headlineIsParcel = parcelFull != null && parcelFull > 0 && !fiscal;
+  const headlineIsPlot =
+    !headlineIsParcel && plotFull != null && plotFull > 0 && !fiscal;
 
   const place = [postcode, agr.council_name].filter(Boolean).join(" · ");
   const w3wDisplay = what3words
     ? `///${what3words.replace(/^\/+/, "")}`
     : null;
+
+  const netRole = fiscal?.role;
+  const netClass =
+    netRole === "net_receiver"
+      ? "fiscal-net receiver"
+      : netRole === "net_contributor"
+        ? "fiscal-net contributor"
+        : "fiscal-net";
 
   return (
     <div className="clarity-result">
@@ -163,34 +191,72 @@ export default function AgrBreakdown({
 
       <div className="agr-value" aria-live="polite">
         {formatGbp(headline, headline >= 100 ? 0 : 2)}
-        <span className="agr-unit">/year</span>
+        <span className="agr-unit">/year gross</span>
       </div>
 
       <p className="headline-caption">
-        {headlineIsParcel
-          ? `Property parcel${parcelLabel ? ` ${parcelLabel}` : ""}${
-              parcelAreaSqm
-                ? ` · ${Math.round(parcelAreaSqm).toLocaleString("en-GB")} m²`
-                : ""
-            }`
-          : headlineIsPlot
-            ? `Typical plot (~${agr.notional_plot_sqm?.toLocaleString("en-GB")} m²)`
-            : `This ${areaSqm} m² cell · ${formatGbp(active.annual_charge_gbp)}/yr`}
+        {fiscal
+          ? "Land rent liability (site only — not buildings or wages)"
+          : headlineIsParcel
+            ? `Property parcel${parcelLabel ? ` ${parcelLabel}` : ""}${
+                parcelAreaSqm
+                  ? ` · ${Math.round(parcelAreaSqm).toLocaleString("en-GB")} m²`
+                  : ""
+              }`
+            : headlineIsPlot
+              ? `Typical plot (~${agr.notional_plot_sqm?.toLocaleString("en-GB")} m²)`
+              : `This ${areaSqm} m² cell · ${formatGbp(active.annual_charge_gbp)}/yr`}
       </p>
 
-      <div className="scenario-pills" role="tablist" aria-label="Scenario">
-        {SCENARIO_ORDER.map((id) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={scenario === id}
-            className={scenario === id ? "scenario-pill active" : "scenario-pill"}
-            onClick={() => onScenarioChange(id)}
-          >
-            {SCENARIO_SHORT[id]}
-          </button>
-        ))}
+      {fiscal && (
+        <div className="fiscal-place">
+          <div className="fiscal-row">
+            <span>Gross land rent</span>
+            <strong>{formatGbp(fiscal.gross_plot_gbp, 0)}</strong>
+          </div>
+          <div className="fiscal-row">
+            <span>Equal dividend (1 person)</span>
+            <strong>−{formatGbp(fiscal.dividend_gbp, 0)}</strong>
+          </div>
+          {fiscal.remote_credit_gbp > 0 && (
+            <div className="fiscal-row">
+              <span>Remote / island credit</span>
+              <strong>−{formatGbp(fiscal.remote_credit_gbp, 0)}</strong>
+            </div>
+          )}
+          <div className={`fiscal-row net ${netClass}`}>
+            <span>Net {fiscal.net_gbp < 0 ? "receipt" : "contribution"}</span>
+            <strong>
+              {fiscal.net_gbp < 0 ? "" : "+"}
+              {formatGbp(fiscal.net_gbp, 0)}
+            </strong>
+          </div>
+          <p className="fiscal-role-tag">
+            {fiscal.role === "net_receiver"
+              ? "Net receiver — low rent / remote support"
+              : fiscal.role === "net_contributor"
+                ? "Net contributor — higher land rent funds the state"
+                : "Roughly neutral"}
+          </p>
+        </div>
+      )}
+
+      <div className="scenario-pills" role="tablist" aria-label="Tax replacement scenario">
+        {SCENARIO_ORDER.map((id) => {
+          if (!agr.scenarios[id]) return null;
+          return (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={scenario === id}
+              className={scenario === id ? "scenario-pill active" : "scenario-pill"}
+              onClick={() => onScenarioChange(id)}
+            >
+              {SCENARIO_SHORT[id]}
+            </button>
+          );
+        })}
       </div>
 
       <p className="result-links">
@@ -204,7 +270,7 @@ export default function AgrBreakdown({
               disabled={reportDownloading}
               onClick={() => onDownloadReport("markdown")}
             >
-              {reportDownloading ? "Preparing…" : "Download report"}
+              {reportDownloading ? "Preparing…" : "MSP brief"}
             </button>
           </>
         )}

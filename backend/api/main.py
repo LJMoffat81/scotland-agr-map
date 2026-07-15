@@ -14,9 +14,11 @@ from fastapi.responses import PlainTextResponse
 
 from agr.engine import breakdown_to_dict
 from agr.config import load_config
+from agr.fiscal import fiscal_summary, place_fiscal
 from agr.overrides import merge_config_overrides
 from agr.batch import assess_points, batch_meta
 from agr.report import API_VERSION, build_assessment_report
+from agr.scenarios import resolve_active_scenario
 from agr.service import ValuationService
 from spatial.grid import snap_to_w3w_grid
 from spatial.w3w import (
@@ -141,6 +143,25 @@ def _square_response(
     if parcel_feature is not None:
         payload["parcel"] = parcel_feature
 
+    # Fiscal tool: gross plot liability vs equal dividend vs remote credit
+    cfg = config if config is not None else load_config()
+    active = resolve_active_scenario(scenario)
+    plot_full = breakdown.roll_annual_rent_notional_plot_gbp or 0.0
+    cell_full = breakdown.economic_annual_rent_gbp or 0.0
+    active_cell = breakdown.annual_ground_rent_gbp or 0.0
+    scale = (active_cell / cell_full) if cell_full > 0 else 1.0
+    gross_plot = plot_full * scale
+    # Prefer parcel-scale gross when cadastral area known
+    if breakdown.roll_annual_rent_parcel_gbp is not None:
+        gross_plot = breakdown.roll_annual_rent_parcel_gbp * scale
+    payload["fiscal"] = place_fiscal(
+        gross_plot_gbp=gross_plot,
+        council_code=breakdown.council_code,
+        scenario=active,
+        config=cfg,
+    )
+    payload["fiscal_summary"] = fiscal_summary(active, cfg)
+
     return payload
 
 
@@ -194,6 +215,27 @@ def get_glasgow_ward_18_boundary() -> JSONResponse:
 def get_layer_catalog() -> dict:
     """List choropleth metrics and overlays for the map UI."""
     return layer_catalog()
+
+
+@app.get("/fiscal/summary")
+def get_fiscal_summary(
+    scenario: str = Query(default="replace_full_basket"),
+    dividend: bool = Query(default=True, description="Include equal-share dividend knobs"),
+    remote_credit: bool = Query(default=True, description="Include remote/island credits"),
+) -> dict:
+    """
+    National fiscal dashboard: tax basket vs AGR collection, surplus, dividend.
+    Uses Sandilands national pool for collection — not the sum of map cells.
+    """
+    try:
+        active = resolve_active_scenario(scenario)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return fiscal_summary(
+        active,
+        dividend_enabled=dividend,
+        remote_credit_enabled=remote_credit,
+    )
 
 
 @app.get("/layers/councils-agr")

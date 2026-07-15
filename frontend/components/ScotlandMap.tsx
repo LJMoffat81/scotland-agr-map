@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import maplibregl, { Map, GeoJSONSource, ExpressionSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import AgrBreakdown, { AgrResult, ScenarioId } from "./AgrBreakdown";
+import AgrBreakdown, {
+  AgrResult,
+  PlaceFiscal,
+  ScenarioId,
+} from "./AgrBreakdown";
 import { apiFetch, apiJson, pingApi } from "../lib/api";
 
 type ParcelFeature = GeoJSON.Feature<
@@ -29,11 +33,23 @@ type SquareResponse = {
   w3w_configured?: boolean;
   sales_context?: import("./AgrBreakdown").SalesContext | null;
   parcel?: ParcelFeature | null;
+  fiscal?: PlaceFiscal | null;
   postcode?: {
     postcode: string;
     admin_district: string | null;
     country: string | null;
   };
+};
+
+type FiscalSummary = {
+  enabled: boolean;
+  scenario: string;
+  basket: { total_gbp: number; lines: Array<{ label: string; annual_gbp: number }> };
+  collection: { annual_gbp: number; method: string };
+  surplus_gbp: number;
+  revenue_neutral_or_better: boolean;
+  dividend: { per_person_gbp: number; mode: string };
+  remote_credit: { enabled: boolean; credit_gbp_per_person_year: number };
 };
 
 type MetricId =
@@ -44,15 +60,19 @@ type MetricId =
   | "land_share"
   | "site_capital"
   | "simd"
-  | "pop_density";
+  | "pop_density"
+  | "net_contribution"
+  | "gross_liability";
 
 type MetricDef = {
   id: MetricId;
   property: string;
   label: string;
-  group: "value" | "context";
+  group: "value" | "context" | "fiscal";
   stops: [number, string][];
 };
+
+type StoryId = "who_pays" | "net_position" | "rent_intensity" | "equity" | "prices";
 
 const emptyCollection: GeoJSON.FeatureCollection = {
   type: "FeatureCollection",
@@ -166,6 +186,66 @@ const METRICS: MetricDef[] = [
       [3000, "#084081"],
     ],
   },
+  {
+    id: "gross_liability",
+    property: "gross_plot_liability_gbp",
+    label: "Who pays most (gross)",
+    group: "fiscal",
+    stops: [
+      [0, "#ffffcc"],
+      [1500, "#c7e9b4"],
+      [3500, "#41b6c4"],
+      [5500, "#2c7fb8"],
+      [8000, "#253494"],
+    ],
+  },
+  {
+    id: "net_contribution",
+    property: "net_contribution_plot_gbp",
+    label: "Net fiscal position",
+    group: "fiscal",
+    // diverging: receivers (negative) → neutral → contributors
+    stops: [
+      [-18000, "#01665e"],
+      [-5000, "#80cdc1"],
+      [0, "#f5f5f5"],
+      [2000, "#fdb863"],
+      [6000, "#b35806"],
+    ],
+  },
+];
+
+const STORIES: Array<{ id: StoryId; label: string; metric: MetricId; blurb: string }> = [
+  {
+    id: "who_pays",
+    label: "Who pays most",
+    metric: "gross_liability",
+    blurb: "Highest land rent → highest gross liability",
+  },
+  {
+    id: "net_position",
+    label: "Net payers vs receivers",
+    metric: "net_contribution",
+    blurb: "After equal dividend + remote credit",
+  },
+  {
+    id: "rent_intensity",
+    label: "Land rent intensity",
+    metric: "rent_per_sqm",
+    blurb: "£/m²/year — Ricardo differential",
+  },
+  {
+    id: "prices",
+    label: "Prices vs rent",
+    metric: "agr_price_pct",
+    blurb: "AGR as % of local house prices",
+  },
+  {
+    id: "equity",
+    label: "Deprivation",
+    metric: "simd",
+    blurb: "SIMD context alongside land rent",
+  },
 ];
 
 const CELL_AGR_COLOR: ExpressionSpecification = [
@@ -204,8 +284,8 @@ export default function ScotlandMap() {
   const mapRef = useRef<Map | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [query, setQuery] = useState("");
-  const [scenario, setScenario] = useState<ScenarioId>("full_agr");
-  const [choropleth, setChoropleth] = useState<MetricId | "off">("agr_plot");
+  const [scenario, setScenario] = useState<ScenarioId>("replace_full_basket");
+  const [choropleth, setChoropleth] = useState<MetricId | "off">("gross_liability");
   const [showBoundaries, setShowBoundaries] = useState(true);
   const [showCellGrid, setShowCellGrid] = useState(false);
   const [showMethod, setShowMethod] = useState(false);
@@ -216,6 +296,8 @@ export default function ScotlandMap() {
   const [apiOk, setApiOk] = useState<boolean | null>(null);
   const [reportDownloading, setReportDownloading] = useState(false);
   const [metricNote, setMetricNote] = useState<string | null>(null);
+  const [fiscalSummary, setFiscalSummary] = useState<FiscalSummary | null>(null);
+  const [activeStory, setActiveStory] = useState<StoryId>("who_pays");
 
   const applyResult = useCallback((payload: SquareResponse) => {
     setResult(payload);
@@ -343,6 +425,35 @@ export default function ScotlandMap() {
       clearInterval(id);
     };
   }, []);
+
+  // National fiscal dashboard
+  useEffect(() => {
+    let cancelled = false;
+    void apiJson<FiscalSummary>(`/fiscal/summary?scenario=${scenario}`)
+      .then((data) => {
+        if (!cancelled) setFiscalSummary(data);
+      })
+      .catch(() => {
+        if (!cancelled) setFiscalSummary(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [scenario]);
+
+  // Re-assess selection when scenario changes so fiscal gross/net update
+  useEffect(() => {
+    if (!result) return;
+    void fetchSquare(result.square.lat, result.square.lng, scenario);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenario]);
+
+  const applyStory = (storyId: StoryId) => {
+    const story = STORIES.find((s) => s.id === storyId);
+    if (!story) return;
+    setActiveStory(storyId);
+    setChoropleth(story.metric);
+  };
 
   useEffect(() => {
     if (!mapContainer.current || mapRef.current) return;
@@ -739,6 +850,48 @@ export default function ScotlandMap() {
           </div>
         )}
 
+        {fiscalSummary?.enabled && (
+          <div
+            className={`fiscal-dash ${
+              fiscalSummary.revenue_neutral_or_better ? "surplus" : "shortfall"
+            }`}
+          >
+            <div className="fiscal-dash-title">Scotland fiscal picture</div>
+            <div className="fiscal-dash-grid">
+              <div>
+                <span className="fd-label">Taxes to replace</span>
+                <span className="fd-value">
+                  {formatBn(fiscalSummary.basket.total_gbp)}
+                </span>
+              </div>
+              <div>
+                <span className="fd-label">AGR collection</span>
+                <span className="fd-value">
+                  {formatBn(fiscalSummary.collection.annual_gbp)}
+                </span>
+              </div>
+              <div>
+                <span className="fd-label">
+                  {fiscalSummary.surplus_gbp >= 0 ? "Surplus" : "Shortfall"}
+                </span>
+                <span className="fd-value">
+                  {formatBn(Math.abs(fiscalSummary.surplus_gbp))}
+                </span>
+              </div>
+            </div>
+            <p className="fiscal-dash-note">
+              {fiscalSummary.revenue_neutral_or_better
+                ? "Revenue neutral or better under this scenario"
+                : "Short of the tax basket under this scenario"}
+              {" · "}
+              Dividend {formatGbp0(fiscalSummary.dividend.per_person_gbp)}/person
+              {fiscalSummary.remote_credit.enabled
+                ? ` · Remote credit +${formatGbp0(fiscalSummary.remote_credit.credit_gbp_per_person_year)}`
+                : ""}
+            </p>
+          </div>
+        )}
+
         <div className="sidebar-scroll">
           <div className="search-block">
             <label className="sr-only" htmlFor="place-query">
@@ -766,6 +919,21 @@ export default function ScotlandMap() {
             </div>
 
             <div className="layer-panel">
+              <label className="layer-select-label">Story for politicians</label>
+              <div className="layer-chips story-chips">
+                {STORIES.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className={activeStory === s.id ? "chip active" : "chip"}
+                    onClick={() => applyStory(s.id)}
+                    title={s.blurb}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+
               <label className="layer-select-label" htmlFor="choropleth">
                 Colour map by
               </label>
@@ -777,6 +945,13 @@ export default function ScotlandMap() {
                   setChoropleth(e.target.value as MetricId | "off")
                 }
               >
+                <optgroup label="Fiscal">
+                  {METRICS.filter((m) => m.group === "fiscal").map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                    </option>
+                  ))}
+                </optgroup>
                 <optgroup label="Value">
                   {valueMetrics.map((m) => (
                     <option key={m.id} value={m.id}>
@@ -832,8 +1007,8 @@ export default function ScotlandMap() {
             {error && <p className="error-line">{error}</p>}
             {!error && !result && (
               <p className="idle-hint">
-                Click the map to estimate Annual Ground Rent. Switch layers to
-                compare prices, land intensity, and deprivation.
+                Click the map: high land-rent places fund the state; remote and
+                low-rent places can be net receivers after dividend.
               </p>
             )}
             {result && (
@@ -850,6 +1025,7 @@ export default function ScotlandMap() {
                 parcelAreaSqm={
                   result.parcel?.properties?.area_sqm ?? result.agr.parcel_area_sqm
                 }
+                fiscal={result.fiscal}
                 onDownloadReport={(fmt) => void downloadReport(fmt)}
                 reportDownloading={reportDownloading}
               />
@@ -871,13 +1047,21 @@ export default function ScotlandMap() {
 function formatRange(min: number, max: number, unit: string): string {
   const fmt = (n: number) => {
     if (unit.includes("%")) return `${n.toFixed(1)}%`;
-    if (unit.startsWith("£") && n >= 1000) {
-      return `£${Math.round(n).toLocaleString("en-GB")}`;
+    if (unit.includes("£") || unit.startsWith("£")) {
+      if (Math.abs(n) >= 1000) return `£${Math.round(n).toLocaleString("en-GB")}`;
+      return `£${n.toFixed(n >= 10 ? 0 : 2)}`;
     }
-    if (unit.startsWith("£")) return `£${n.toFixed(n >= 10 ? 0 : 2)}`;
-    if (n >= 100) return Math.round(n).toLocaleString("en-GB");
+    if (Math.abs(n) >= 100) return Math.round(n).toLocaleString("en-GB");
     return n.toFixed(1);
   };
-  const u = unit.includes("%") || unit.startsWith("£") ? "" : ` ${unit}`;
+  const u = unit.includes("%") || unit.includes("£") ? "" : ` ${unit}`;
   return `${fmt(min)}–${fmt(max)}${u}`;
+}
+
+function formatBn(n: number): string {
+  return `£${(n / 1e9).toFixed(1)}bn`;
+}
+
+function formatGbp0(n: number): string {
+  return `£${Math.round(n).toLocaleString("en-GB")}`;
 }

@@ -3,8 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agr.config import load_config
+from agr.fiscal import basket_total_gbp
 
-VALID_SCENARIOS = ("full_agr", "replace_income_tax", "revenue_neutral")
+VALID_SCENARIOS = (
+    "full_agr",
+    "replace_income_tax",
+    "revenue_neutral",
+    "replace_full_basket",
+)
 
 
 @dataclass(frozen=True)
@@ -52,15 +58,23 @@ def compute_scenarios(
     revenue_rate = revenue_cfg["rate_per_pound"]
     revenue_charge = despeculated_site_value * revenue_rate
 
+    basket = basket_total_gbp(config)
+    full_basket_rate = basket / estimated_total_rent if estimated_total_rent else 0.0
+    full_basket_charge = economic_rent * full_basket_rate
+    full_basket_cfg = scenarios_cfg.get("replace_full_basket") or {}
+    full_basket_label = full_basket_cfg.get(
+        "label", "Replace all listed taxes (neutral)"
+    )
+
     charges = {
         "full_agr": ScenarioCharge(
             id="full_agr",
             label=full_cfg["label"],
             annual_charge_gbp=round(full_charge, 2),
             description=(
-                "Full annual economic ground rent for this grid cell from the valuer "
-                "residual roll (MV − DRC → Pickard → yield). SLRG full AGR / Unitism "
-                "community land contribution framing. Not calibrated to sum to the national pool."
+                "Full annual economic ground rent for this place (valuer residual). "
+                "National full collection exceeds today’s tax basket — surplus for services "
+                "or citizen dividend. High-rent locations contribute most."
             ),
             effective_rate=full_cfg["capture_rate"],
         ),
@@ -69,9 +83,9 @@ def compute_scenarios(
             label=scenarios_cfg["replace_income_tax"]["label"],
             annual_charge_gbp=round(income_tax_charge, 2),
             description=(
-                f"Scales this square’s map economic rent so Scotland raises "
+                f"Scales map economic rent so Scotland raises "
                 f"£{income_tax_target / 1e9:.1f}bn if the national pool is "
-                f"£{estimated_total_rent / 1e9:.0f}bn (Sandilands macro; Gaffney ATCOR). "
+                f"£{estimated_total_rent / 1e9:.0f}bn (Sandilands). "
                 "Uses the national pool ratio, not a sum of map cells."
             ),
             effective_rate=round(income_tax_rate, 4),
@@ -81,10 +95,21 @@ def compute_scenarios(
             label=revenue_cfg["label"],
             annual_charge_gbp=round(revenue_charge, 2),
             description=(
-                f"Charge {revenue_rate * 100:.2f}% of this cell’s economic site capital "
-                "(Wightman-style CT + NDR replacement rate on residual roll capital)."
+                f"Charge {revenue_rate * 100:.2f}% of this place’s economic site capital "
+                "(Wightman-style CT + NDR replacement on residual capital)."
             ),
             effective_rate=revenue_rate,
+        ),
+        "replace_full_basket": ScenarioCharge(
+            id="replace_full_basket",
+            label=full_basket_label,
+            annual_charge_gbp=round(full_basket_charge, 2),
+            description=(
+                f"Scales map economic rent so national collection matches the fiscal basket "
+                f"(£{basket / 1e9:.1f}bn: income tax + Council Tax + NDR). "
+                "Revenue-neutral on listed taxes; high-rent places still pay most."
+            ),
+            effective_rate=round(full_basket_rate, 4),
         ),
     }
     return round(economic_rent, 2), charges
@@ -104,5 +129,7 @@ def resolve_active_scenario(scenario: str | None) -> str:
     if scenario is None:
         return "full_agr"
     if scenario not in VALID_SCENARIOS:
-        raise ValueError(f"Unknown scenario '{scenario}'. Choose: {', '.join(VALID_SCENARIOS)}")
+        raise ValueError(
+            f"Unknown scenario '{scenario}'. Choose: {', '.join(VALID_SCENARIOS)}"
+        )
     return scenario

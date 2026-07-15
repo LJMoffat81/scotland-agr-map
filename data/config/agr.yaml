@@ -112,6 +112,49 @@ macro:
   ebcor: true
 
 # ---------------------------------------------------------------------------
+# Fiscal tool — tax replacement narrative for politicians (research figures)
+# Basket totals are order-of-magnitude SG/HMRC-style placeholders; update yearly.
+# National collection uses Sandilands pool ratios; place map uses residual roll.
+# ---------------------------------------------------------------------------
+fiscal:
+  enabled: true
+  purpose: "Show revenue-neutral-or-better tax replacement from land rent; high-rent places pay most; remote/low-rent can be net receivers."
+  basket:
+    note: "Research mid-year placeholders for demo — not an OBR forecast. Cite / refresh from SG and HMRC stats."
+    lines:
+      - id: income_tax
+        label: "Scotland income tax"
+        annual_gbp: 11500000000
+      - id: council_tax
+        label: "Council Tax"
+        annual_gbp: 2800000000
+      - id: ndr
+        label: "Non-domestic rates (NDR)"
+        annual_gbp: 2800000000
+    # Sum of lines is the taxes-to-replace total T
+  dividend:
+    # equal_share_of_pool: pool ÷ population (Ogilvie/Paine/Unitism)
+    # equal_share_of_surplus: max(0, national collection − basket) ÷ population
+    # none: no dividend in net position
+    mode: equal_share_of_pool
+    enabled: true
+  remote_credit:
+    enabled: true
+    # Extra £/person/year support for designated remote/island councils (negative net tax)
+    credit_gbp_per_person_year: 500
+    councils:
+      - S12000013  # Na h-Eileanan Siar
+      - S12000023  # Orkney Islands
+      - S12000027  # Shetland Islands
+      - S12000017  # Highland
+      - S12000035  # Argyll and Bute
+    notes: "Optional repopulation / periphery support on top of equal dividend — research policy knob, not statute."
+  integrity:
+    - "National surplus uses Sandilands rent pool × scenario rate, not the sum of map residual cells."
+    - "Place net = plot gross AGR − equal dividend (− remote credit). Household of one for comparison."
+    - "Not a live tax bill; residual is open-data research approximation."
+
+# ---------------------------------------------------------------------------
 # Valuer-style AGR roll (primary charge path)
 # MV − DRC residual (Wightman) → Pickard economic base → × yield = annual rent
 # ---------------------------------------------------------------------------
@@ -187,13 +230,17 @@ land_use_values_gbp_per_ha_2009:
 scenarios:
   full_agr:
     capture_rate: 1.0
-    label: "Full AGR / community land contribution"
+    label: "Full land rent (surplus for services + dividend)"
   replace_income_tax:
     target_gbp: 11500000000
-    label: "Replace Scotland Income Tax (Sandilands)"
+    label: "Replace income tax only"
   revenue_neutral:
     rate_per_pound: 0.0316
-    label: "Replace Council Tax + NDR (Wightman)"
+    label: "Replace Council Tax + NDR"
+  replace_full_basket:
+    # Collect fiscal basket total from national rent pool (revenue-neutral on listed taxes)
+    label: "Replace all listed taxes (neutral)"
+    use_fiscal_basket: true
 
 disclaimer: "SLRG-aligned valuer residual AGR estimate — open-data approximation of a roll, not an official rates bill"
 
